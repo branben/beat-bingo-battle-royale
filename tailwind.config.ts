@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -84,11 +85,30 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
+			    'bingo-celebration': {
+				  '0%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+				  '25%': { transform: 'scale(1.2) rotate(5deg)', opacity: '0.8' },
+				  '50%': { transform: 'scale(1.5) rotate(-5deg)', opacity: '0.6' },
+				  '75%': { transform: 'scale(1.3) rotate(3deg)', opacity: '0.8' },
+				  '100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' }
+			    },
+			    'genre-call': {
+				  '0%': { transform: 'translateY(20px)', opacity: '0' },
+				  '50%': { transform: 'translateY(-5px)', opacity: '1' },
+				  '100%': { transform: 'translateY(0)', opacity: '1' }
+			    },
+			    'vote-pulse': {
+				  '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+				  '50%': { transform: 'scale(1.05)', opacity: '0.8' }
+			    }
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'bingo-celebration': 'bingo-celebration 1s ease-in-out',
+				'genre-call': 'genre-call 0.5s ease-out',
+				'vote-pulse': 'vote-pulse 2s ease-in-out infinite'
 			}
 		}
 	},
