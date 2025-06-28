@@ -7,7 +7,8 @@ import VotingPanel from './VotingPanel';
 import PlayerStats from './PlayerStats';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Play, Users } from 'lucide-react';
+import { Sparkles, Play, Users, CheckCircle, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface GameBoardProps {
   currentPlayer?: Player;
@@ -16,8 +17,10 @@ interface GameBoardProps {
 
 const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes
+  const [timeRemaining, setTimeRemaining] = useState(300);
   const [blindedPlayers, setBlindedPlayers] = useState<Set<string>>(new Set());
+  const [playersReady, setPlayersReady] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
   // Mock data for demonstration
   const mockPlayers: Player[] = [
@@ -67,6 +70,17 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       correct_votes: 32,
       coins: 200,
       role: 'Silver III'
+    },
+    {
+      id: '5',
+      username: 'MusicLover',
+      competitor_elo: 750,
+      spectator_elo: 1050,
+      wins: 3,
+      losses: 4,
+      correct_votes: 18,
+      coins: 90,
+      role: 'Bronze V'
     }
   ];
 
@@ -84,11 +98,40 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       spectators: mockSpectators,
       votes: {},
       handicaps_used: [],
-      status: 'active'
+      status: 'waiting'
     };
 
     setGameState(newGame);
-    setTimeRemaining(300);
+    setPlayersReady(new Set());
+    toast({
+      title: "Game Started!",
+      description: "Both players must agree to call the first genre.",
+    });
+  };
+
+  const handlePlayerReady = (playerId: string) => {
+    const newReadyPlayers = new Set(playersReady);
+    
+    if (newReadyPlayers.has(playerId)) {
+      newReadyPlayers.delete(playerId);
+      toast({
+        title: "Player Not Ready",
+        description: `${playerId === '1' ? 'BeatMaster_2024' : 'RhythmKing'} is no longer ready.`,
+      });
+    } else {
+      newReadyPlayers.add(playerId);
+      toast({
+        title: "Player Ready!",
+        description: `${playerId === '1' ? 'BeatMaster_2024' : 'RhythmKing'} is ready to start production.`,
+      });
+    }
+    
+    setPlayersReady(newReadyPlayers);
+    
+    // If both players are ready, automatically call the genre
+    if (newReadyPlayers.size === 2 && gameState) {
+      setTimeout(() => callGenre(), 1000); // Small delay for better UX
+    }
   };
 
   const callGenre = () => {
@@ -104,11 +147,17 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       ...prev,
       called_genres: [...prev.called_genres, newGenre],
       current_call: newGenre,
-      status: 'voting',
-      voting_deadline: new Date(Date.now() + 5 * 60 * 1000)
+      status: 'active',
+      voting_deadline: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes for production
     } : null);
 
-    setTimeRemaining(300);
+    setTimeRemaining(1800); // 30 minutes in seconds
+    setPlayersReady(new Set()); // Reset ready states
+    
+    toast({
+      title: "🎵 Genre Called!",
+      description: `Both players have 30 minutes to create a ${newGenre} beat!`,
+    });
   };
 
   const handleSquareClick = (playerId: string, row: number, col: number) => {
@@ -191,7 +240,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         <div className="text-center space-y-8">
           <div className="space-y-4">
             <h1 className="text-6xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent">
-              Beat Bingo Battle
+              Sound Royale
             </h1>
             <p className="text-xl text-slate-300 max-w-2xl mx-auto">
               Compete in real-time bingo battles with music genres. Vote, strategize, and climb the leaderboard!
@@ -222,13 +271,16 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     );
   }
 
+  const isCurrentPlayerCompeting = currentPlayer && (currentPlayer.id === gameState.player1.id || currentPlayer.id === gameState.player2.id);
+  const currentPlayerReady = currentPlayer ? playersReady.has(currentPlayer.id) : false;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-            Beat Bingo Battle
+            Sound Royale
           </h1>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Badge variant="outline" className="border-purple-500 text-purple-300">
@@ -243,8 +295,81 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
           </div>
         </div>
 
+        {/* Waiting for Players to Ready Up */}
+        {gameState.status === 'waiting' && (
+          <div className="text-center p-6 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center justify-center gap-2">
+              <Clock className="text-yellow-400" />
+              Waiting for Players to Ready Up
+            </h2>
+            <p className="text-lg text-slate-300 mb-6">
+              Both competitors must agree before the first genre is called
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              {/* Player 1 Ready Status */}
+              <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-semibold text-white">{gameState.player1.username}</span>
+                  {playersReady.has(gameState.player1.id) ? (
+                    <CheckCircle className="text-green-400" size={20} />
+                  ) : (
+                    <Clock className="text-yellow-400" size={20} />
+                  )}
+                </div>
+                {isCurrentPlayerCompeting && currentPlayer?.id === gameState.player1.id && (
+                  <Button
+                    onClick={() => handlePlayerReady(gameState.player1.id)}
+                    variant={currentPlayerReady ? "secondary" : "default"}
+                    className={currentPlayerReady ? "bg-green-600 hover:bg-green-700" : ""}
+                  >
+                    {currentPlayerReady ? "Ready!" : "Mark Ready"}
+                  </Button>
+                )}
+                {!isCurrentPlayerCompeting && (
+                  <Badge variant={playersReady.has(gameState.player1.id) ? "default" : "outline"}>
+                    {playersReady.has(gameState.player1.id) ? "Ready" : "Waiting"}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Player 2 Ready Status */}
+              <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-semibold text-white">{gameState.player2.username}</span>
+                  {playersReady.has(gameState.player2.id) ? (
+                    <CheckCircle className="text-green-400" size={20} />
+                  ) : (
+                    <Clock className="text-yellow-400" size={20} />
+                  )}
+                </div>
+                {isCurrentPlayerCompeting && currentPlayer?.id === gameState.player2.id && (
+                  <Button
+                    onClick={() => handlePlayerReady(gameState.player2.id)}
+                    variant={currentPlayerReady ? "secondary" : "default"}
+                    className={currentPlayerReady ? "bg-green-600 hover:bg-green-700" : ""}
+                  >
+                    {currentPlayerReady ? "Ready!" : "Mark Ready"}
+                  </Button>
+                )}
+                {!isCurrentPlayerCompeting && (
+                  <Badge variant={playersReady.has(gameState.player2.id) ? "default" : "outline"}>
+                    {playersReady.has(gameState.player2.id) ? "Ready" : "Waiting"}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-sm text-slate-400">
+                {playersReady.size}/2 players ready • Once both are ready, the first genre will be called automatically
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Current Genre Display */}
-        {gameState.current_call && (
+        {gameState.current_call && gameState.status === 'active' && (
           <div className="text-center p-4 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg">
             <p className="text-lg text-slate-300">Current Genre:</p>
             <h2 className="text-3xl font-bold text-white flex items-center justify-center gap-2">
@@ -252,6 +377,9 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
               {gameState.current_call}
               <Sparkles className="text-yellow-400" />
             </h2>
+            <p className="text-sm text-slate-400 mt-2">
+              Production Phase: 30 minutes to create your beat
+            </p>
           </div>
         )}
 
@@ -270,41 +398,35 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         )}
 
         {/* Game Boards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <BingoCard
-            card={gameState.player1_card}
-            onSquareClick={(row, col) => handleSquareClick(gameState.player1.id, row, col)}
-            isClickable={gameState.status === 'active'}
-            playerName={gameState.player1.username}
-            isBlinded={blindedPlayers.has(gameState.player1.id)}
-          />
-          <BingoCard
-            card={gameState.player2_card}
-            onSquareClick={(row, col) => handleSquareClick(gameState.player2.id, row, col)}
-            isClickable={gameState.status === 'active'}
-            playerName={gameState.player2.username}
-            isBlinded={blindedPlayers.has(gameState.player2.id)}
-          />
-        </div>
+        {gameState.status !== 'waiting' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <BingoCard
+              card={gameState.player1_card}
+              onSquareClick={(row, col) => handleSquareClick(gameState.player1.id, row, col)}
+              isClickable={gameState.status === 'active'}
+              playerName={gameState.player1.username}
+              isBlinded={blindedPlayers.has(gameState.player1.id)}
+            />
+            <BingoCard
+              card={gameState.player2_card}
+              onSquareClick={(row, col) => handleSquareClick(gameState.player2.id, row, col)}
+              isClickable={gameState.status === 'active'}
+              playerName={gameState.player2.username}
+              isBlinded={blindedPlayers.has(gameState.player2.id)}
+            />
+          </div>
+        )}
 
         {/* Player Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <PlayerStats player={gameState.player1} isCompact />
-          <PlayerStats player={gameState.player2} isCompact />
-        </div>
+        {gameState.status !== 'waiting' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <PlayerStats player={gameState.player1} isCompact />
+            <PlayerStats player={gameState.player2} isCompact />
+          </div>
+        )}
 
         {/* Game Controls */}
         <div className="text-center">
-          {gameState.status === 'active' && (
-            <Button
-              onClick={callGenre}
-              size="lg"
-              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
-            >
-              Call Next Genre
-            </Button>
-          )}
-          
           {gameState.status === 'finished' && (
             <div className="space-y-4">
               <h2 className="text-3xl font-bold text-yellow-400">
