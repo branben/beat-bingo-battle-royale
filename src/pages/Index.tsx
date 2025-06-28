@@ -42,27 +42,27 @@ const Index = () => {
         <div className="text-center space-y-8 max-w-4xl mx-auto">
           <div className="space-y-4">
             <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
-              Beat Bingo Battle
+              Sound Royale
             </h1>
             <p className="text-2xl text-slate-300 font-medium">
-              Discord-Integrated Music Genre Battle Royale
+              Discord-Integrated Music Production Battle Arena
             </p>
             <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-              Join real-time bingo battles with smart genre calling, weighted spectator voting, and competitive ELO rankings.
+              Compete in real-time beat battles with smart genre calling, weighted spectator voting, and competitive ELO rankings.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-12">
             <div className="bg-slate-800/60 border border-purple-500/30 rounded-lg p-6 text-center">
               <Gamepad2 className="mx-auto mb-4 text-purple-400" size={48} />
-              <h3 className="text-xl font-bold text-white mb-2">Smart Gameplay</h3>
-              <p className="text-slate-300">AI-powered genre selection ensures every game is competitive and engaging</p>
+              <h3 className="text-xl font-bold text-white mb-2">Smart Production</h3>
+              <p className="text-slate-300">30-minute production phases with genre-based challenges and beat uploads</p>
             </div>
             
             <div className="bg-slate-800/60 border border-cyan-500/30 rounded-lg p-6 text-center">
               <Users className="mx-auto mb-4 text-cyan-400" size={48} />
               <h3 className="text-xl font-bold text-white mb-2">Spectator Voting</h3>
-              <p className="text-slate-300">ELO-weighted voting system with real-time engagement and rewards</p>
+              <p className="text-slate-300">15-minute voting windows with ELO-weighted decisions and real rewards</p>
             </div>
             
             <div className="bg-slate-800/60 border border-pink-500/30 rounded-lg p-6 text-center">
@@ -76,7 +76,7 @@ const Index = () => {
             <div className="flex flex-wrap justify-center gap-2 mb-6">
               <Badge className="bg-purple-600/20 text-purple-300 border-purple-500/30">5x5 Bingo Cards</Badge>
               <Badge className="bg-cyan-600/20 text-cyan-300 border-cyan-500/30">25 Music Genres</Badge>
-              <Badge className="bg-pink-600/20 text-pink-300 border-pink-500/30">Handicap System</Badge>
+              <Badge className="bg-pink-600/20 text-pink-300 border-pink-500/30">Beat Upload System</Badge>
               <Badge className="bg-green-600/20 text-green-300 border-green-500/30">Real-time Voting</Badge>
               <Badge className="bg-yellow-600/20 text-yellow-300 border-yellow-500/30">Discord Integration</Badge>
             </div>
@@ -97,11 +97,12 @@ const Index = () => {
           <div className="bg-slate-800/30 border border-purple-500/20 rounded-lg p-6 text-left max-w-2xl mx-auto">
             <h3 className="text-lg font-bold text-cyan-400 mb-3">How It Works:</h3>
             <ol className="text-slate-300 space-y-2">
-              <li>1. Two players get unique 5x5 bingo cards with music genres</li>
-              <li>2. AI calls genres that exist on at least one player's card</li>
-              <li>3. Spectators vote on who performed the genre better (5min window)</li>
-              <li>4. Winner marks their square; first to get BINGO wins!</li>
-              <li>5. ELO ratings update based on performance and voting accuracy</li>
+              <li>1. Two producers get unique 5x5 bingo cards with music genres</li>
+              <li>2. 30-minute production phase: Create beats for called genres</li>
+              <li>3. Upload beats and mark "Ready" when finished</li>
+              <li>4. 15-minute voting phase: Spectators vote on better performance</li>
+              <li>5. Winner marks their square; first to get BINGO wins the match!</li>
+              <li>6. ELO ratings update based on performance and voting accuracy</li>
             </ol>
           </div>
         </div>
@@ -131,7 +132,7 @@ const Index = () => {
             </div>
             
             <div className="text-sm text-slate-400 space-y-1">
-              <p>• Starting ELO: 1000 (Spectator), 500 (Competitor)</p>
+              <p>• Starting ELO: 1000 (Spectator), 500 (Producer)</p>
               <p>• Starting coins: 100</p>
               <p>• Vote power: 1.0x (increases with ELO)</p>
             </div>

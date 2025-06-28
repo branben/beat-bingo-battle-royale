@@ -1,222 +1,258 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, Player } from '@/types/game';
-import { generateBingoCard, selectGenre, checkBingo } from '@/utils/gameLogic';
+import { Player, GameState, BingoCard as BingoCardType } from '@/types/game';
+import { generateBingoCard, selectGenre, checkBingo, calculateVotePower } from '@/utils/gameLogic';
 import BingoCard from './BingoCard';
-import VotingPanel from './VotingPanel';
+import ProductionPhase from './ProductionPhase';
+import VotingPhase from './VotingPhase';
 import PlayerStats from './PlayerStats';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Sparkles, Play, Users } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trophy, Crown, Timer } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 interface GameBoardProps {
-  currentPlayer?: Player;
-  onGameEnd?: (winner: Player) => void;
+  currentPlayer: Player;
+  onGameEnd: (winner: Player) => void;
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes
-  const [blindedPlayers, setBlindedPlayers] = useState<Set<string>>(new Set());
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [votedFor, setVotedFor] = useState<string>();
+  const [voteResults, setVoteResults] = useState<{
+    player1Votes: number;
+    player2Votes: number;
+    totalVotes: number;
+  }>();
 
-  // Mock data for demonstration
-  const mockPlayers: Player[] = [
-    {
-      id: '1',
-      username: 'BeatMaster_2024',
-      competitor_elo: 1250,
+  // Initialize demo game
+  useEffect(() => {
+    const demoPlayer1: Player = {
+      id: 'demo-player-1',
+      username: 'BeatMaster',
+      competitor_elo: 1200,
       spectator_elo: 1100,
       wins: 15,
       losses: 8,
       correct_votes: 45,
       coins: 250,
-      role: 'Silver III'
-    },
-    {
-      id: '2', 
+      role: 'Gold II'
+    };
+
+    const demoPlayer2: Player = {
+      id: 'demo-player-2',
       username: 'RhythmKing',
-      competitor_elo: 1180,
-      spectator_elo: 950,
+      competitor_elo: 1150,
+      spectator_elo: 1050,
       wins: 12,
       losses: 10,
       correct_votes: 38,
       coins: 180,
       role: 'Silver III'
-    }
-  ];
-
-  const mockSpectators: Player[] = [
-    {
-      id: '3',
-      username: 'SpectatorOne',
-      competitor_elo: 800,
-      spectator_elo: 1200,
-      wins: 5,
-      losses: 3,
-      correct_votes: 25,
-      coins: 120,
-      role: 'Silver III'
-    },
-    {
-      id: '4',
-      username: 'VoteExpert',
-      competitor_elo: 950,
-      spectator_elo: 1400,
-      wins: 8,
-      losses: 6,
-      correct_votes: 32,
-      coins: 200,
-      role: 'Silver III'
-    }
-  ];
-
-  const startNewGame = () => {
-    const player1 = mockPlayers[0];
-    const player2 = mockPlayers[1];
-    
-    const newGame: GameState = {
-      id: `game_${Date.now()}`,
-      player1,
-      player2,
-      player1_card: generateBingoCard(),
-      player2_card: generateBingoCard(),
-      called_genres: [],
-      spectators: mockSpectators,
-      votes: {},
-      handicaps_used: [],
-      status: 'active'
     };
 
-    setGameState(newGame);
-    setTimeRemaining(300);
-  };
+    const demoSpectators: Player[] = [
+      {
+        id: 'spec-1',
+        username: 'MusicLover',
+        competitor_elo: 800,
+        spectator_elo: 1200,
+        wins: 5,
+        losses: 3,
+        correct_votes: 25,
+        coins: 120,
+        role: 'Silver III'
+      },
+      {
+        id: 'spec-2',
+        username: 'BeatCritic',
+        competitor_elo: 600,
+        spectator_elo: 950,
+        wins: 2,
+        losses: 5,
+        correct_votes: 18,
+        coins: 95,
+        role: 'Bronze V'
+      }
+    ];
 
-  const callGenre = () => {
+    const card1 = generateBingoCard();
+    const card2 = generateBingoCard();
+    const genre = selectGenre([], card1, card2);
+
+    const initialGame: GameState = {
+      id: 'demo-game-1',
+      player1: demoPlayer1,
+      player2: demoPlayer2,
+      player1_card: card1,
+      player2_card: card2,
+      called_genres: [genre],
+      current_call: genre,
+      spectators: demoSpectators,
+      votes: {},
+      handicaps_used: [],
+      status: 'production', // Start in production phase
+      voting_deadline: new Date(Date.now() + 15 * 60 * 1000)
+    };
+
+    setGameState(initialGame);
+    setTimeRemaining(30 * 60); // 30 minutes for production
+  }, []);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          handlePhaseTransition();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeRemaining]);
+
+  const handlePhaseTransition = () => {
     if (!gameState) return;
 
-    const newGenre = selectGenre(
-      gameState.called_genres,
-      gameState.player1_card,
-      gameState.player2_card
-    );
-
-    setGameState(prev => prev ? {
-      ...prev,
-      called_genres: [...prev.called_genres, newGenre],
-      current_call: newGenre,
-      status: 'voting',
-      voting_deadline: new Date(Date.now() + 5 * 60 * 1000)
-    } : null);
-
-    setTimeRemaining(300);
+    if (gameState.status === 'production') {
+      // Move to voting phase
+      setGameState(prev => prev ? { ...prev, status: 'voting' } : null);
+      setTimeRemaining(15 * 60); // 15 minutes for voting
+      toast({
+        title: "Voting Phase Started!",
+        description: "Spectators can now vote for the better beat.",
+      });
+    } else if (gameState.status === 'voting') {
+      // End voting, determine winner
+      handleVotingEnd();
+    }
   };
 
-  const handleSquareClick = (playerId: string, row: number, col: number) => {
-    if (!gameState || gameState.status !== 'active') return;
-
+  const handleBeatUpload = async (playerId: string, audioFile: File) => {
+    // Simulate file upload - in real app, upload to storage
+    console.log(`Uploading beat for player ${playerId}:`, audioFile.name);
+    
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Update game state with audio URL (simulated)
+    const audioUrl = URL.createObjectURL(audioFile);
     setGameState(prev => {
       if (!prev) return null;
-
-      const isPlayer1 = playerId === prev.player1.id;
-      const card = isPlayer1 ? prev.player1_card : prev.player2_card;
-      const currentCall = prev.current_call;
-
-      if (!currentCall || card.squares[row][col] !== currentCall) return prev;
-
-      const newCard = {
-        ...card,
-        marked: card.marked.map((cardRow, rIndex) =>
-          cardRow.map((marked, cIndex) =>
-            rIndex === row && cIndex === col ? true : marked
-          )
-        )
-      };
-
-      const hasBingo = checkBingo(newCard);
-      
-      if (hasBingo) {
-        const winner = isPlayer1 ? prev.player1 : prev.player2;
-        onGameEnd?.(winner);
-        return {
-          ...prev,
-          [isPlayer1 ? 'player1_card' : 'player2_card']: newCard,
-          winner_id: winner.id,
-          status: 'finished'
-        };
-      }
-
       return {
         ...prev,
-        [isPlayer1 ? 'player1_card' : 'player2_card']: newCard
+        // In real app, store audio URLs in beat_submissions table
       };
     });
   };
 
-  const handleVote = (playerId: string) => {
-    if (!gameState || !currentPlayer) return;
-
-    setGameState(prev => prev ? {
-      ...prev,
-      votes: {
-        ...prev.votes,
-        [currentPlayer.id]: playerId
-      }
-    } : null);
+  const handleReadyToggle = (playerId: string, isReady: boolean) => {
+    console.log(`Player ${playerId} ready status: ${isReady}`);
+    
+    // Check if both players are ready
+    if (gameState && gameState.status === 'production') {
+      // Simulate both players being ready after one marks ready
+      setTimeout(() => {
+        setGameState(prev => prev ? { ...prev, status: 'voting' } : null);
+        setTimeRemaining(15 * 60);
+        toast({
+          title: "Both Producers Ready!",
+          description: "Moving to voting phase early.",
+        });
+      }, 2000);
+    }
   };
 
-  useEffect(() => {
-    if (gameState?.status === 'voting' && timeRemaining > 0) {
-      const timer = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            // Voting ended, determine winner
-            const totalVotes = Object.keys(gameState.votes).length;
-            if (totalVotes >= 3) { // Minimum spectators
-              // Process votes and continue game
-              setGameState(current => current ? { ...current, status: 'active' } : null);
-            }
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+  const handleVote = (playerId: string) => {
+    if (hasVoted || !gameState) return;
+    
+    setHasVoted(true);
+    setVotedFor(playerId);
+    
+    // Update vote results (simulated)
+    const votePower = calculateVotePower(currentPlayer.spectator_elo);
+    setVoteResults(prev => {
+      const current = prev || { player1Votes: 0, player2Votes: 0, totalVotes: 0 };
+      return {
+        player1Votes: playerId === gameState.player1.id ? current.player1Votes + votePower : current.player1Votes,
+        player2Votes: playerId === gameState.player2.id ? current.player2Votes + votePower : current.player2Votes,
+        totalVotes: current.totalVotes + votePower
+      };
+    });
+  };
 
-      return () => clearInterval(timer);
-    }
-  }, [gameState?.status, timeRemaining]);
+  const handleVotingEnd = () => {
+    if (!gameState || !voteResults) return;
+    
+    const winner = voteResults.player1Votes > voteResults.player2Votes ? gameState.player1 : gameState.player2;
+    
+    toast({
+      title: "Voting Complete!",
+      description: `${winner.username} wins this round and can mark their square!`,
+    });
+    
+    // Move to active phase for square marking
+    setGameState(prev => prev ? { ...prev, status: 'active', winner_id: winner.id } : null);
+  };
+
+  const handleSquareClick = (row: number, col: number) => {
+    if (!gameState || gameState.status !== 'active') return;
+    
+    const isPlayer1 = currentPlayer.id === gameState.player1.id;
+    const isPlayer2 = currentPlayer.id === gameState.player2.id;
+    const canMark = (isPlayer1 || isPlayer2) && gameState.winner_id === currentPlayer.id;
+    
+    if (!canMark) return;
+    
+    setGameState(prev => {
+      if (!prev) return null;
+      
+      const newGameState = { ...prev };
+      const currentCard = isPlayer1 ? newGameState.player1_card : newGameState.player2_card;
+      
+      // Check if square matches current genre
+      if (currentCard.squares[row][col] === prev.current_call || currentCard.squares[row][col] === 'FREE') {
+        currentCard.marked[row][col] = true;
+        
+        // Check for bingo
+        if (checkBingo(currentCard)) {
+          newGameState.status = 'finished';
+          newGameState.winner_id = currentPlayer.id;
+          onGameEnd(currentPlayer);
+          toast({
+            title: "BINGO!",
+            description: `${currentPlayer.username} wins the game!`,
+          });
+        } else {
+          // Start next round
+          const nextGenre = selectGenre(prev.called_genres, newGameState.player1_card, newGameState.player2_card);
+          newGameState.called_genres.push(nextGenre);
+          newGameState.current_call = nextGenre;
+          newGameState.status = 'production';
+          setTimeRemaining(30 * 60);
+          setHasVoted(false);
+          setVotedFor(undefined);
+          setVoteResults(undefined);
+        }
+      }
+      
+      return newGameState;
+    });
+  };
 
   if (!gameState) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-8">
-          <div className="space-y-4">
-            <h1 className="text-6xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent">
-              Beat Bingo Battle
-            </h1>
-            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-              Compete in real-time bingo battles with music genres. Vote, strategize, and climb the leaderboard!
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {mockPlayers.map((player) => (
-              <PlayerStats key={player.id} player={player} />
-            ))}
-          </div>
-
-          <Button
-            onClick={startNewGame}
-            size="lg"
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-8 py-4 text-lg"
-          >
-            <Play className="mr-2" size={20} />
-            Start New Battle
-          </Button>
-
-          <div className="flex items-center justify-center gap-2 text-slate-400">
-            <Users size={16} />
-            <span>{mockSpectators.length} spectators ready</span>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Timer className="w-16 h-16 text-purple-400 animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white">Starting Sound Royale...</h2>
         </div>
       </div>
     );
@@ -226,117 +262,92 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-            Beat Bingo Battle
-          </h1>
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <Badge variant="outline" className="border-purple-500 text-purple-300">
-              Game #{gameState.id.slice(-4)}
-            </Badge>
-            <Badge variant="outline" className="border-cyan-500 text-cyan-300">
-              {gameState.called_genres.length} Genres Called
-            </Badge>
-            <Badge variant="outline" className="border-green-500 text-green-300">
-              {gameState.spectators.length} Spectators
-            </Badge>
-          </div>
-        </div>
+        <Card className="bg-slate-800/50 border-purple-500/30">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-center gap-2 text-3xl text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text">
+              <Crown className="w-8 h-8 text-purple-400" />
+              Sound Royale
+            </CardTitle>
+          </CardHeader>
+        </Card>
 
-        {/* Current Genre Display */}
-        {gameState.current_call && (
-          <div className="text-center p-4 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg">
-            <p className="text-lg text-slate-300">Current Genre:</p>
-            <h2 className="text-3xl font-bold text-white flex items-center justify-center gap-2">
-              <Sparkles className="text-yellow-400" />
-              {gameState.current_call}
-              <Sparkles className="text-yellow-400" />
-            </h2>
-          </div>
-        )}
-
-        {/* Voting Panel */}
-        {gameState.status === 'voting' && (
-          <VotingPanel
+        {/* Game Phases */}
+        {gameState.status === 'production' && (
+          <ProductionPhase
             player1={gameState.player1}
             player2={gameState.player2}
-            spectators={gameState.spectators}
-            votes={gameState.votes}
-            onVote={handleVote}
-            currentSpectator={currentPlayer}
+            currentGenre={gameState.current_call!}
             timeRemaining={timeRemaining}
-            currentGenre={gameState.current_call || ''}
+            onBeatUpload={handleBeatUpload}
+            onReadyToggle={handleReadyToggle}
+            player1Ready={false}
+            player2Ready={false}
+            currentPlayer={currentPlayer}
           />
         )}
 
-        {/* Game Boards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <BingoCard
-            card={gameState.player1_card}
-            onSquareClick={(row, col) => handleSquareClick(gameState.player1.id, row, col)}
-            isClickable={gameState.status === 'active'}
-            playerName={gameState.player1.username}
-            isBlinded={blindedPlayers.has(gameState.player1.id)}
+        {gameState.status === 'voting' && (
+          <VotingPhase
+            player1={gameState.player1}
+            player2={gameState.player2}
+            currentGenre={gameState.current_call!}
+            timeRemaining={timeRemaining}
+            spectators={gameState.spectators}
+            onVote={handleVote}
+            currentPlayer={currentPlayer}
+            player1AudioUrl="demo-audio-1"
+            player2AudioUrl="demo-audio-2"
+            hasVoted={hasVoted}
+            votedFor={votedFor}
+            voteResults={voteResults}
           />
-          <BingoCard
-            card={gameState.player2_card}
-            onSquareClick={(row, col) => handleSquareClick(gameState.player2.id, row, col)}
-            isClickable={gameState.status === 'active'}
-            playerName={gameState.player2.username}
-            isBlinded={blindedPlayers.has(gameState.player2.id)}
-          />
-        </div>
+        )}
+
+        {/* Bingo Cards (shown after voting or during active phase) */}
+        {(gameState.status === 'active' || gameState.status === 'finished') && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <BingoCard
+              card={gameState.player1_card}
+              onSquareClick={handleSquareClick}
+              isClickable={gameState.status === 'active' && gameState.winner_id === gameState.player1.id}
+              playerName={gameState.player1.username}
+            />
+            <BingoCard
+              card={gameState.player2_card}
+              onSquareClick={handleSquareClick}
+              isClickable={gameState.status === 'active' && gameState.winner_id === gameState.player2.id}
+              playerName={gameState.player2.username}
+            />
+          </div>
+        )}
 
         {/* Player Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <PlayerStats player={gameState.player1} isCompact />
-          <PlayerStats player={gameState.player2} isCompact />
+          <PlayerStats player={gameState.player1} />
+          <PlayerStats player={gameState.player2} />
         </div>
 
-        {/* Game Controls */}
-        <div className="text-center">
-          {gameState.status === 'active' && (
-            <Button
-              onClick={callGenre}
-              size="lg"
-              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
-            >
-              Call Next Genre
-            </Button>
-          )}
-          
-          {gameState.status === 'finished' && (
-            <div className="space-y-4">
-              <h2 className="text-3xl font-bold text-yellow-400">
-                🎉 {gameState.winner_id === gameState.player1.id ? gameState.player1.username : gameState.player2.username} Wins! 🎉
-              </h2>
-              <Button
-                onClick={startNewGame}
-                size="lg"
+        {/* Game Over */}
+        {gameState.status === 'finished' && (
+          <Card className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-2 text-2xl text-yellow-400">
+                <Trophy className="w-8 h-8" />
+                Game Complete!
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-xl text-white mb-4">
+                🎉 {gameState.player1.id === gameState.winner_id ? gameState.player1.username : gameState.player2.username} wins!
+              </p>
+              <Button 
+                onClick={() => window.location.reload()} 
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
               >
-                Start New Battle
+                Play Again
               </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Called Genres History */}
-        {gameState.called_genres.length > 0 && (
-          <div className="bg-slate-800/50 border border-purple-500/20 rounded-lg p-4">
-            <h3 className="text-lg font-bold text-cyan-400 mb-3">Called Genres</h3>
-            <div className="flex flex-wrap gap-2">
-              {gameState.called_genres.map((genre, index) => (
-                <Badge 
-                  key={index} 
-                  variant="secondary" 
-                  className="bg-slate-700 text-slate-200"
-                >
-                  {genre}
-                </Badge>
-              ))}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

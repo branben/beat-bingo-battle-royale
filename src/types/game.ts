@@ -30,7 +30,7 @@ export interface GameState {
   voting_deadline?: Date;
   handicaps_used: any[];
   winner_id?: string;
-  status: 'waiting' | 'active' | 'voting' | 'handicap' | 'finished';
+  status: 'waiting' | 'production' | 'voting' | 'handicap' | 'active' | 'finished';
 }
 
 export interface Vote {
