@@ -221,14 +221,14 @@ export const GameAnalytics = ({ gameState, gameDuration, totalVotes, roundDetail
           <div className="text-center space-y-2">
             <div className="text-lg font-medium text-slate-200">{winner.username}</div>
             <div className="text-3xl font-bold text-green-400">+24 ELO</div>
-            <div className="text-sm text-slate-400">{winner.elo} → {winner.elo + 24}</div>
-            <div className="text-xs text-green-300">New rank: {winner.elo + 24 >= 1300 ? 'Gold I' : 'Gold II'}</div>
+            <div className="text-sm text-slate-400">{winner.competitor_elo} → {winner.competitor_elo + 24}</div>
+            <div className="text-xs text-green-300">New rank: {winner.competitor_elo + 24 >= 1300 ? 'Gold II' : 'Silver III'}</div>
           </div>
           
           <div className="text-center space-y-2">
             <div className="text-lg font-medium text-slate-200">{loser.username}</div>
             <div className="text-3xl font-bold text-red-400">-18 ELO</div>
-            <div className="text-sm text-slate-400">{loser.elo} → {loser.elo - 18}</div>
+            <div className="text-sm text-slate-400">{loser.competitor_elo} → {loser.competitor_elo - 18}</div>
             <div className="text-xs text-slate-400">Rank unchanged</div>
           </div>
         </CardContent>

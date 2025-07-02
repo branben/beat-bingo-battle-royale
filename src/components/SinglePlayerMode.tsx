@@ -55,7 +55,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
       losses: 8,
       correct_votes: 45,
       coins: 200,
-      role: 'Gold I'
+      role: 'Gold II'
     },
     {
       id: 'spectator-3',
@@ -84,18 +84,25 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
       id: `sp-${Date.now()}`,
       status: 'active',
       currentRound: 0,
-      calledGenres: [],
+      called_genres: [],
       currentGenre: undefined,
+      player1: currentPlayer,
+      player2: aiOpponent,
       players: [currentPlayer, aiOpponent],
       spectators: mockSpectators,
+      player1_card: player1Card,
+      player2_card: player2Card,
       player1Card,
       player2Card,
+      calledGenres: [],
       roundStartTime: Date.now(),
-      votingDeadline: undefined,
-      winner: undefined,
+      voting_deadline: undefined,
+      winner_id: undefined,
       spectatorCount: mockSpectators.length,
       totalRounds: 0,
-      matchNumber: Math.floor(Math.random() * 9000) + 1000
+      matchNumber: Math.floor(Math.random() * 9000) + 1000,
+      votes: {},
+      handicaps_used: []
     };
 
     setGameState(newGameState);
@@ -129,7 +136,8 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
       currentRound: newRound,
       currentGenre: genre,
       calledGenres: [...currentGameState.calledGenres, genre],
-      votingDeadline,
+      called_genres: [...currentGameState.called_genres, genre],
+      voting_deadline: new Date(votingDeadline),
       totalRounds: newRound
     };
 
@@ -197,8 +205,8 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
     });
 
     // Check for bingo
-    const player1Bingo = checkBingo(currentGameState.player1Card, currentGameState.calledGenres);
-    const player2Bingo = checkBingo(currentGameState.player2Card, currentGameState.calledGenres);
+    const player1Bingo = checkBingo(currentGameState.player1Card.squares, currentGameState.calledGenres);
+    const player2Bingo = checkBingo(currentGameState.player2Card.squares, currentGameState.calledGenres);
 
     if (player1Bingo || player2Bingo) {
       const gameWinner = player1Bingo ? currentGameState.players[0] : currentGameState.players[1];
@@ -218,7 +226,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
     const finalGameState: GameState = {
       ...currentGameState,
       status: 'finished',
-      winner: finalWinner.id
+      winner_id: finalWinner.id
     };
     
     setGameState(finalGameState);
@@ -424,7 +432,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
                 🎉 Practice Complete!
               </h2>
               <p className="text-slate-300 mb-6">
-                {gameState.winner === currentPlayer.id ? 
+                {gameState.winner_id === currentPlayer.id ? 
                   "Great job! You're ready for multiplayer!" :
                   "Keep practicing! You'll get better with time."}
               </p>

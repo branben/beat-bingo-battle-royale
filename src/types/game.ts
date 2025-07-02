@@ -31,6 +31,19 @@ export interface GameState {
   handicaps_used: any[];
   winner_id?: string;
   status: 'waiting' | 'active' | 'voting' | 'handicap' | 'finished';
+  
+  // Additional properties used by components
+  currentRound: number;
+  currentGenre?: string;
+  players: Player[];
+  player1Card: BingoCard;
+  player2Card: BingoCard;
+  calledGenres: string[];
+  matchNumber?: number;
+  spectatorCount?: number;
+  totalRounds: number;
+  roundStartTime?: number;
+  winner?: string;
 }
 
 export interface Vote {
