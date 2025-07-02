@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { validateAudioFile } from '@/utils/audioProcessing';
 
@@ -33,7 +34,8 @@ export class AudioStorageService {
     // Validate file first
     const validationResult = await validateAudioFile(file);
     if (!validationResult.isValid) {
-      throw new Error(validationResult.error);
+      const errorMessage = validationResult.errors.length > 0 ? validationResult.errors[0] : 'Invalid file';
+      throw new Error(errorMessage);
     }
 
     // Check if the operation was aborted
@@ -99,4 +101,3 @@ export class AudioStorageService {
     return publicUrl;
   }
 }
-

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
@@ -82,8 +83,9 @@ export const AudioUpload: React.FC<AudioUploadProps> = ({
       const file = acceptedFiles[0];
       const validation = await validateAudioFile(file);
       if (!validation.isValid) {
-        setError(validation.error ?? 'Invalid file.');
-        toast({ title: "Validation Failed", description: validation.error, variant: "destructive" });
+        const errorMessage = validation.errors.length > 0 ? validation.errors[0] : 'Invalid file.';
+        setError(errorMessage);
+        toast({ title: "Validation Failed", description: errorMessage, variant: "destructive" });
       } else {
         await handleUpload(file);
       }
@@ -152,7 +154,7 @@ export const AudioUpload: React.FC<AudioUploadProps> = ({
       </div>
 
       {error && !uploading && (
-        <div className="mt-3 flex items-center gap-2 text-red-40t00 text-sm animate-shake">
+        <div className="mt-3 flex items-center gap-2 text-red-400 text-sm animate-shake">
           <AlertCircle className="h-4 w-4" />
           <span>{error}</span>
         </div>

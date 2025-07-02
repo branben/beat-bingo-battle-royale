@@ -2,18 +2,24 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Player } from "@/types/game";
+import { AuthUser } from "@/lib/auth";
 import GameBoard from "@/components/GameBoard";
 import SinglePlayerMode from "@/components/SinglePlayerMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Gamepad2, Users, Trophy, Sparkles } from "lucide-react";
 
-const Index = () => {
+interface IndexProps {
+  initialPlayer?: Player | null;
+  initialAuthUser?: AuthUser | null;
+}
+
+const Index: React.FC<IndexProps> = ({ initialPlayer, initialAuthUser }) => {
   const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multiplayer'>('menu');
   const { toast } = useToast();
 
-  // Mock current player - in real app this would come from auth
-  const currentPlayer: Player = {
+  // Use the passed player or create a mock one
+  const currentPlayer: Player = initialPlayer || {
     id: 'current-user',
     username: 'You',
     competitor_elo: 1100,

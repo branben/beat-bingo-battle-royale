@@ -67,3 +67,13 @@ export const checkBingo = (card: BingoCard): boolean => {
   
   return false;
 };
+
+export const getPlayerRole = (elo: number): string => {
+  if (elo >= 2000) return 'Grandmaster';
+  if (elo >= 1800) return 'Master';
+  if (elo >= 1600) return 'Diamond III';
+  if (elo >= 1400) return 'Platinum I';
+  if (elo >= 1200) return 'Gold II';
+  if (elo >= 1000) return 'Silver III';
+  return 'Bronze V';
+};
