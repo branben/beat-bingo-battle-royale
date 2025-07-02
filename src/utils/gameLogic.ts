@@ -2,19 +2,19 @@
 import { BingoCard, BEAT_GENRES } from '@/types/game';
 
 export const generateBingoCard = (): BingoCard => {
-  // Shuffle genres and take first 25
+  // Shuffle genres and take first 9 for 3x3 grid
   const shuffledGenres = [...BEAT_GENRES].sort(() => Math.random() - 0.5);
-  const selectedGenres = shuffledGenres.slice(0, 25);
+  const selectedGenres = shuffledGenres.slice(0, 9);
   
-  // Create 5x5 grid
+  // Create 3x3 grid
   const squares: string[][] = [];
   const marked: boolean[][] = [];
   
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 3; i++) {
     squares[i] = [];
     marked[i] = [];
-    for (let j = 0; j < 5; j++) {
-      squares[i][j] = selectedGenres[i * 5 + j];
+    for (let j = 0; j < 3; j++) {
+      squares[i][j] = selectedGenres[i * 3 + j];
       marked[i][j] = false;
     }
   }
@@ -43,25 +43,25 @@ export const selectGenre = (
 export const checkBingo = (card: BingoCard): boolean => {
   const { marked } = card;
   
-  // Check rows
-  for (let i = 0; i < 5; i++) {
+  // Check rows (3x3)
+  for (let i = 0; i < 3; i++) {
     if (marked[i].every(cell => cell)) {
       return true;
     }
   }
   
-  // Check columns
-  for (let j = 0; j < 5; j++) {
+  // Check columns (3x3)
+  for (let j = 0; j < 3; j++) {
     if (marked.every(row => row[j])) {
       return true;
     }
   }
   
-  // Check diagonals
-  if (marked[0][0] && marked[1][1] && marked[2][2] && marked[3][3] && marked[4][4]) {
+  // Check diagonals (3x3)
+  if (marked[0][0] && marked[1][1] && marked[2][2]) {
     return true;
   }
-  if (marked[0][4] && marked[1][3] && marked[2][2] && marked[3][1] && marked[4][0]) {
+  if (marked[0][2] && marked[1][1] && marked[2][0]) {
     return true;
   }
   

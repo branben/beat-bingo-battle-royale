@@ -25,93 +25,132 @@ const BingoCard: React.FC<BingoCardProps> = ({
   const isGenreCalled = (genre: string) => calledGenres.includes(genre);
   const isGenreWon = (genre: string) => wonGenres.includes(genre);
 
+  // Convert 5x5 to 3x3 by taking center 3x3 section
+  const get3x3Grid = () => {
+    if (!card.squares || card.squares.length < 5) return [];
+    
+    const grid3x3 = [];
+    for (let i = 1; i <= 3; i++) {
+      const row = [];
+      for (let j = 1; j <= 3; j++) {
+        row.push(card.squares[i][j]);
+      }
+      grid3x3.push(row);
+    }
+    return grid3x3;
+  };
+
+  const squares3x3 = get3x3Grid();
+
   return (
-    <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-slate-900/40 via-purple-900/20 to-slate-900/40 backdrop-blur-xl">
-      {/* Glassmorphic overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/5 pointer-events-none" />
-      
-      {/* Animated border */}
-      <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-cyan-500/20 p-[1px]">
-        <div className="h-full w-full rounded-lg bg-slate-900/50 backdrop-blur-sm" />
-      </div>
-
-      <CardHeader className="relative z-10">
-        <CardTitle className="text-lg font-semibold flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-sm">
-              {playerName.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-            {playerName}'s Board
-          </span>
-          {isBlinded && (
-            <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30">
-              Blinded
-            </Badge>
-          )}
-          {isCurrentPlayer && (
-            <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-              You
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="p-4 relative z-10">
-        <div className="grid grid-cols-5 gap-2">
-          {card.squares.map((row, rowIndex) => (
-            row.map((genre, colIndex) => {
-              const isCalled = isGenreCalled(genre);
-              const isWon = isGenreWon(genre);
-              
-              return (
-                <div key={`${rowIndex}-${colIndex}`} className="relative group">
-                  <div className={`
-                    relative rounded-lg p-3 flex items-center justify-center text-xs font-medium
-                    transition-all duration-300 ease-out transform hover:scale-105
-                    backdrop-blur-sm border
-                    ${isWon 
-                      ? 'bg-gradient-to-br from-green-500/30 to-emerald-600/30 border-green-400/50 text-green-100 shadow-lg shadow-green-500/25' 
-                      : isCalled 
-                        ? 'bg-gradient-to-br from-blue-500/20 to-purple-600/20 border-blue-400/30 text-blue-100 shadow-md shadow-blue-500/20' 
-                        : 'bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-slate-600/30 text-slate-300 hover:border-purple-500/40'
-                    }
-                    ${isBlinded ? 'opacity-20 blur-sm' : ''}
-                  `}>
-                    {/* Glassmorphic inner glow */}
-                    <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    <span className="relative z-10 text-center leading-tight">
-                      {genre}
-                    </span>
-                    
-                    {/* Win indicator */}
-                    {isWon && (
-                      <div className="absolute -top-1 -right-1">
-                        <div className="w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
-                          <Sparkles className="w-3 h-3 text-white" />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Called indicator */}
-                    {isCalled && !isWon && (
-                      <CheckCircle2 className="absolute top-1 right-1 w-4 h-4 text-blue-400" />
-                    )}
-                  </div>
-                  
-                  {/* Animated ring for won genres */}
-                  {isWon && (
-                    <div className="absolute inset-0 rounded-lg border-2 border-green-400/60 animate-pulse" />
+    <div className="relative">
+      {/* Glassmorphic card container */}
+      <div className="relative bg-gradient-to-br from-slate-800/30 via-slate-900/40 to-slate-800/30 backdrop-blur-xl border border-slate-600/30 rounded-2xl p-6 shadow-2xl">
+        {/* Animated border glow */}
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-cyan-500/20 rounded-2xl opacity-50 animate-pulse"></div>
+        
+        {/* Inner glassmorphic layer */}
+        <div className="relative z-10">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">
+                  {playerName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                  {playerName}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {isCurrentPlayer && (
+                    <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">
+                      You
+                    </Badge>
+                  )}
+                  {isBlinded && (
+                    <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30 text-xs">
+                      Blinded
+                    </Badge>
                   )}
                 </div>
-              );
-            })
-          ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3x3 Bingo Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            {squares3x3.map((row, rowIndex) => (
+              row.map((genre, colIndex) => {
+                const isCalled = isGenreCalled(genre);
+                const isWon = isGenreWon(genre);
+                
+                return (
+                  <div key={`${rowIndex}-${colIndex}`} className="relative group">
+                    <div className={`
+                      relative rounded-2xl p-4 flex items-center justify-center text-sm font-medium
+                      transition-all duration-300 ease-out transform hover:scale-105 hover:-translate-y-1
+                      backdrop-blur-sm border min-h-[80px]
+                      ${isWon 
+                        ? 'bg-gradient-to-br from-emerald-500/30 to-green-600/40 border-emerald-400/50 text-emerald-100 shadow-lg shadow-emerald-500/25' 
+                        : isCalled 
+                          ? 'bg-gradient-to-br from-blue-500/30 to-indigo-600/40 border-blue-400/50 text-blue-100 shadow-lg shadow-blue-500/25' 
+                          : 'bg-gradient-to-br from-slate-700/50 to-slate-800/60 border-slate-500/30 text-slate-200 hover:border-purple-400/50 hover:bg-slate-700/60'
+                      }
+                      ${isBlinded ? 'opacity-20 blur-sm pointer-events-none' : ''}
+                    `}>
+                      {/* Glassmorphic inner shine */}
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      
+                      {/* Genre text */}
+                      <span className="relative z-10 text-center leading-tight font-semibold">
+                        {genre}
+                      </span>
+                      
+                      {/* Win sparkle indicator */}
+                      {isWon && (
+                        <div className="absolute -top-2 -right-2">
+                          <div className="w-6 h-6 bg-gradient-to-r from-emerald-400 to-green-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                            <Sparkles className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Called check indicator */}
+                      {isCalled && !isWon && (
+                        <div className="absolute -top-1 -right-1">
+                          <CheckCircle2 className="w-5 h-5 text-blue-400 drop-shadow-lg" />
+                        </div>
+                      )}
+                      
+                      {/* Special effects for center square (if it's the FREE space equivalent) */}
+                      {rowIndex === 1 && colIndex === 1 && (
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 animate-pulse" />
+                      )}
+                    </div>
+                    
+                    {/* Animated glow ring for won genres */}
+                    {isWon && (
+                      <div className="absolute inset-0 rounded-2xl border-2 border-emerald-400/60 animate-pulse shadow-lg shadow-emerald-400/30" />
+                    )}
+                    
+                    {/* Hover glow effect */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/0 via-blue-500/0 to-cyan-500/0 group-hover:from-purple-500/10 group-hover:via-blue-500/10 group-hover:to-cyan-500/10 transition-all duration-300 pointer-events-none" />
+                  </div>
+                );
+              })
+            ))}
+          </div>
+
+          {/* Card stats footer */}
+          <div className="mt-6 flex justify-between items-center text-xs text-slate-400">
+            <span>{calledGenres.length} genres called</span>
+            <span>{wonGenres.length} bingos</span>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

@@ -247,7 +247,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       }
 
       const newRound = gameState.currentRound + 1;
-      const votingDeadline = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+      const votingDeadline = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes from now
 
       // Sync state in real-time
       await syncGameState({
@@ -255,7 +255,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         currentGenre: genre,
         currentRound: newRound,
         calledGenres: [...gameState.called_genres, genre],
-        voting_deadline: votingDeadline.toISOString(),
+        voting_deadline: votingDeadline,
         totalRounds: newRound
       });
 
