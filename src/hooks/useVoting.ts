@@ -6,7 +6,7 @@ export interface Vote {
   id: string;
   match_id: string;
   voter_id: string;
-  voted_for_player_id: string;
+  voted_for_id: string;
   round_number: number;
   vote_power: number;
   voter?: {
@@ -35,7 +35,19 @@ export const useMatchVotes = (matchId: string, roundNumber: number) => {
         .eq('round_number', roundNumber);
       
       if (error) throw error;
-      return data as Vote[];
+      
+      // Transform data to match Vote interface
+      const transformedData = data?.map(vote => ({
+        id: vote.id,
+        match_id: vote.match_id,
+        voter_id: vote.voter_id,
+        voted_for_id: vote.voted_for_id,
+        round_number: vote.round_number,
+        vote_power: vote.vote_power,
+        voter: vote.voter
+      })) as Vote[];
+      
+      return transformedData;
     },
     enabled: !!matchId && roundNumber > 0
   });

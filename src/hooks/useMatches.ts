@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Player } from '@/types/game';
@@ -30,6 +31,21 @@ export interface Match {
   winner?: Player;
 }
 
+// Helper function to convert Supabase User to Player interface
+const convertUserToPlayer = (user: any): Player => {
+  return {
+    id: user.id,
+    username: user.username || 'Unknown',
+    competitor_elo: user.competitor_elo || 500,
+    spectator_elo: user.spectator_elo || 1000,
+    wins: user.games_won || 0,
+    losses: (user.games_played || 0) - (user.games_won || 0),
+    correct_votes: user.total_votes_received || 0,
+    coins: user.coins || 100,
+    role: user.competitor_elo >= 1200 ? 'Gold II' : 'Silver III'
+  };
+};
+
 // Fetch all active matches
 export const useMatches = () => {
   return useQuery({
@@ -47,7 +63,16 @@ export const useMatches = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as unknown as Match[];
+      
+      // Transform the data to match our Match interface
+      const transformedData = data?.map(match => ({
+        ...match,
+        player1: match.player1 ? convertUserToPlayer(match.player1) : undefined,
+        player2: match.player2 ? convertUserToPlayer(match.player2) : undefined,
+        winner: match.winner ? convertUserToPlayer(match.winner) : undefined
+      })) as Match[];
+      
+      return transformedData;
     }
   });
 };
@@ -69,7 +94,16 @@ export const useMatch = (matchId: string) => {
         .single();
       
       if (error) throw error;
-      return data as unknown as Match;
+      
+      // Transform the data to match our Match interface
+      const transformedData = {
+        ...data,
+        player1: data.player1 ? convertUserToPlayer(data.player1) : undefined,
+        player2: data.player2 ? convertUserToPlayer(data.player2) : undefined,
+        winner: data.winner ? convertUserToPlayer(data.winner) : undefined
+      } as Match;
+      
+      return transformedData;
     },
     enabled: !!matchId
   });
@@ -107,7 +141,16 @@ export const useCreateMatch = () => {
         .single();
       
       if (error) throw error;
-      return data as unknown as Match;
+      
+      // Transform the data to match our Match interface
+      const transformedData = {
+        ...data,
+        player1: data.player1 ? convertUserToPlayer(data.player1) : undefined,
+        player2: data.player2 ? convertUserToPlayer(data.player2) : undefined,
+        winner: data.winner ? convertUserToPlayer(data.winner) : undefined
+      } as Match;
+      
+      return transformedData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -139,7 +182,16 @@ export const useJoinMatch = () => {
         .single();
       
       if (error) throw error;
-      return data as Match;
+      
+      // Transform the data to match our Match interface
+      const transformedData = {
+        ...data,
+        player1: data.player1 ? convertUserToPlayer(data.player1) : undefined,
+        player2: data.player2 ? convertUserToPlayer(data.player2) : undefined,
+        winner: data.winner ? convertUserToPlayer(data.winner) : undefined
+      } as Match;
+      
+      return transformedData;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -156,7 +208,7 @@ export const useUpdateMatchStatus = () => {
     mutationFn: async ({ matchId, status, updates }: { 
       matchId: string; 
       status: Match['status'];
-      updates?: Partial<Match>;
+      updates?: Partial<Omit<Match, 'id' | 'created_at' | 'player1' | 'player2' | 'winner'>>;
     }) => {
       const updateData: any = { 
         status, 
@@ -177,7 +229,16 @@ export const useUpdateMatchStatus = () => {
         .single();
       
       if (error) throw error;
-      return data as Match;
+      
+      // Transform the data to match our Match interface
+      const transformedData = {
+        ...data,
+        player1: data.player1 ? convertUserToPlayer(data.player1) : undefined,
+        player2: data.player2 ? convertUserToPlayer(data.player2) : undefined,
+        winner: data.winner ? convertUserToPlayer(data.winner) : undefined
+      } as Match;
+      
+      return transformedData;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -188,29 +249,29 @@ export const useUpdateMatchStatus = () => {
 
 // Convert Match to GameState for compatibility with existing components
 export const matchToGameState = (match: Match, spectators: Player[] = []): GameState => {
-  const player1: Player = match.player1 ? {
-    id: match.player1.id,
-    username: match.player1.username,
-    competitor_elo: match.player1.competitor_elo,
-    spectator_elo: match.player1.spectator_elo,
-    wins: match.player1.games_won,
-    losses: match.player1.games_played - match.player1.games_won,
-    correct_votes: match.player1.total_votes_received,
-    coins: match.player1.coins,
-    role: match.player1.competitor_elo >= 1200 ? 'Gold II' : 'Silver III'
-  } : {} as Player;
+  const player1: Player = match.player1 || {
+    id: '',
+    username: 'Unknown',
+    competitor_elo: 500,
+    spectator_elo: 1000,
+    wins: 0,
+    losses: 0,
+    correct_votes: 0,
+    coins: 100,
+    role: 'Silver III'
+  };
 
-  const player2: Player = match.player2 ? {
-    id: match.player2.id,
-    username: match.player2.username,
-    competitor_elo: match.player2.competitor_elo,
-    spectator_elo: match.player2.spectator_elo,
-    wins: match.player2.games_won,
-    losses: match.player2.games_played - match.player2.games_won,
-    correct_votes: match.player2.total_votes_received,
-    coins: match.player2.coins,
-    role: match.player2.competitor_elo >= 1200 ? 'Gold II' : 'Silver III'
-  } : {} as Player;
+  const player2: Player = match.player2 || {
+    id: '',
+    username: 'Unknown',
+    competitor_elo: 500,
+    spectator_elo: 1000,
+    wins: 0,
+    losses: 0,
+    correct_votes: 0,
+    coins: 100,
+    role: 'Silver III'
+  };
 
   return {
     id: match.id,

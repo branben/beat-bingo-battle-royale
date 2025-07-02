@@ -1,80 +1,146 @@
 
-import {
-  ALLOWED_MIME_TYPES,
-  ALLOWED_EXTENSIONS,
-  MAX_FILE_SIZE,
-} from '@/lib/audio-storage';
+// Audio processing utilities for Sound Royale
 
-export const MIN_DURATION_SECONDS = 30;
-export const MAX_DURATION_SECONDS = 300; // 5 minutes
-
-export interface AudioValidationResult {
-  isValid: boolean;
-  error?: string;
-  duration?: number;
+export interface AudioAnalysis {
+  tempo: number;
+  key: string;
+  energy: number;
+  danceability: number;
+  loudness: number;
 }
 
-/**
- * Extracts the duration of an audio file in seconds.
- * @param file The audio file.
- * @returns A promise that resolves with the duration in seconds.
- */
-export const getAudioDuration = (file: File): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const reader = new FileReader();
+export interface AudioValidation {
+  isValid: boolean;
+  duration: number;
+  format: string;
+  errors: string[];
+}
 
-    reader.onload = (e) => {
-      if (!e.target?.result) {
-        return reject(new Error('Failed to read file.'));
-      }
-      audioContext.decodeAudioData(e.target.result as ArrayBuffer, 
-        (buffer) => {
-          resolve(buffer.duration);
-        },
-        (error) => {
-          reject(new Error(`Could not decode audio data: ${error.message}`));
-        }
-      );
-    };
-
-    reader.onerror = () => {
-      reject(new Error('FileReader error.'));
-    };
-
-    reader.readAsArrayBuffer(file);
-  });
+// Basic audio validation
+export const validateAudioFile = async (file: File): Promise<AudioValidation> => {
+  const errors: string[] = [];
+  
+  // Check file size (max 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    errors.push('File size must be less than 10MB');
+  }
+  
+  // Check file type
+  const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/m4a'];
+  if (!allowedTypes.includes(file.type)) {
+    errors.push('Only MP3, WAV, MP4, and M4A files are allowed');
+  }
+  
+  // Get audio duration
+  let duration = 0;
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    duration = audioBuffer.duration;
+    
+    // Check duration (must be between 30 seconds and 5 minutes for battles)
+    if (duration < 30) {
+      errors.push('Audio must be at least 30 seconds long');
+    }
+    if (duration > 300) {
+      errors.push('Audio must be no longer than 5 minutes');
+    }
+    
+    audioContext.close();
+  } catch (error) {
+    errors.push('Could not decode audio file');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    duration,
+    format: file.type,
+    errors
+  };
 };
 
-/**
- * Validates an audio file based on type, size, and duration.
- * @param file The audio file to validate.
- * @returns A promise that resolves with a validation result object.
- */
-export const validateAudioFile = async (file: File): Promise<AudioValidationResult> => {
-  // Check file type
-  const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-  if (!ALLOWED_MIME_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.includes(fileExtension)) {
-    return { isValid: false, error: 'Please upload an MP3 or WAV file.' };
-  }
-
-  // Check file size
-  if (file.size > MAX_FILE_SIZE) {
-    return { isValid: false, error: 'File size must be less than 10MB.' };
-  }
-
-  // Check duration
+// Basic audio analysis (simplified version)
+export const analyzeAudio = async (file: File): Promise<AudioAnalysis> => {
   try {
-    const duration = await getAudioDuration(file);
-    if (duration < MIN_DURATION_SECONDS) {
-      return { isValid: false, error: `Audio must be at least ${MIN_DURATION_SECONDS} seconds long.`, duration };
-    }
-    if (duration > MAX_DURATION_SECONDS) {
-      return { isValid: false, error: `Audio must be no longer than ${MAX_DURATION_SECONDS / 60} minutes.`, duration };
-    }
-    return { isValid: true, duration };
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Get audio data for analysis
+    const channelData = audioBuffer.getChannelData(0);
+    
+    // Calculate basic metrics
+    const analysis = performBasicAnalysis(channelData, audioBuffer.sampleRate);
+    
+    audioContext.close();
+    return analysis;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Could not process audio file.';
-    return { isValid: false, error: `Duration check failed: ${errorMessage}` };
+    console.error('Audio analysis failed:', error);
+    // Return default values if analysis fails
+    return {
+      tempo: 120,
+      key: 'C',
+      energy: 0.5,
+      danceability: 0.5,
+      loudness: -10
+    };
   }
+};
+
+// Simplified audio analysis calculations
+const performBasicAnalysis = (channelData: Float32Array, sampleRate: number): AudioAnalysis => {
+  // Calculate RMS energy
+  let sumSquares = 0;
+  for (let i = 0; i < channelData.length; i++) {
+    sumSquares += channelData[i] * channelData[i];
+  }
+  const rms = Math.sqrt(sumSquares / channelData.length);
+  const energy = Math.min(rms * 2, 1); // Normalize to 0-1
+  
+  // Calculate loudness (simplified)
+  const loudness = 20 * Math.log10(rms) || -60; // dB
+  
+  // Basic tempo detection (very simplified - counts zero crossings)
+  let zeroCrossings = 0;
+  for (let i = 1; i < channelData.length; i++) {
+    if ((channelData[i-1] >= 0) !== (channelData[i] >= 0)) {
+      zeroCrossings++;
+    }
+  }
+  
+  // Rough tempo estimation based on zero crossings
+  const tempo = Math.min(Math.max((zeroCrossings / channelData.length) * sampleRate / 100, 60), 200);
+  
+  // Mock key detection (would need FFT for real implementation)
+  const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const key = keys[Math.floor(Math.random() * keys.length)];
+  
+  // Danceability based on energy and tempo
+  const danceability = Math.min((energy * 0.7) + ((tempo - 60) / 140 * 0.3), 1);
+  
+  return {
+    tempo: Math.round(tempo),
+    key,
+    energy: Math.round(energy * 100) / 100,
+    danceability: Math.round(danceability * 100) / 100,
+    loudness: Math.round(loudness * 10) / 10
+  };
+};
+
+// Convert file to format suitable for storage/streaming
+export const processAudioForStorage = async (file: File): Promise<Blob> => {
+  // For now, just return the original file
+  // In a real implementation, you might want to:
+  // - Normalize audio levels
+  // - Convert to a standard format (MP3)
+  // - Apply compression
+  
+  return file;
+};
+
+export default {
+  validateAudioFile,
+  analyzeAudio,
+  processAudioForStorage
 };

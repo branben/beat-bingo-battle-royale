@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GameState, Player } from '@/types/game';
 import { generateBingoCard, selectGenre, checkBingo } from '@/utils/gameLogic';
@@ -102,7 +103,9 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
       totalRounds: 0,
       matchNumber: Math.floor(Math.random() * 9000) + 1000,
       votes: {},
-      handicaps_used: []
+      handicaps_used: [],
+      current_call: undefined,
+      winner: undefined
     };
 
     setGameState(newGameState);
@@ -120,7 +123,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
   const callNextGenre = (currentGameState: GameState) => {
     const player1_genres = currentGameState.player1Card?.squares?.flat() || [];
     const player2_genres = currentGameState.player2Card?.squares?.flat() || [];
-    const genre = selectGenre(player1_genres, player2_genres, currentGameState.calledGenres);
+    const genre = selectGenre(player1_genres, player2_genres, currentGameState.called_genres);
 
     if (!genre) {
       handleGameEnd(currentGameState);
@@ -137,6 +140,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
       currentGenre: genre,
       calledGenres: [...currentGameState.calledGenres, genre],
       called_genres: [...currentGameState.called_genres, genre],
+      current_call: genre,
       voting_deadline: new Date(votingDeadline),
       totalRounds: newRound
     };
@@ -226,7 +230,8 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
     const finalGameState: GameState = {
       ...currentGameState,
       status: 'finished',
-      winner_id: finalWinner.id
+      winner_id: finalWinner.id,
+      winner: finalWinner.id
     };
     
     setGameState(finalGameState);
@@ -375,7 +380,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
           </h1>
           <div className="flex justify-center items-center gap-6 text-lg text-slate-300">
             <span>Practice Game #{gameState.matchNumber}</span>
-            <span>{gameState.calledGenres?.length || 0} Genres Called</span>
+            <span>{gameState.called_genres?.length || 0} Genres Called</span>
             <span>{gameState.spectatorCount || 0} AI Spectators</span>
           </div>
         </div>
@@ -402,7 +407,7 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
               <PlayerStats player={player} />
               <BingoCard
                 card={index === 0 ? gameState.player1Card : gameState.player2Card}
-                calledGenres={gameState.calledGenres || []}
+                calledGenres={gameState.called_genres || []}
                 isBlinded={false}
                 playerName={player.username}
               />

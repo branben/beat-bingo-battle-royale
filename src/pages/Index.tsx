@@ -1,233 +1,143 @@
 
-import React, { useState } from 'react';
-import GameBoard from '@/components/GameBoard_v2';
-import SinglePlayerMode from '@/components/SinglePlayerMode';
-import { Player } from '@/types/game';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Users, Trophy, Gamepad2, LogIn, Mail } from 'lucide-react';
-import { AuthService, AuthUser } from '@/lib/auth';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Player } from "@/types/game";
+import GameBoard from "@/components/GameBoard";
+import SinglePlayerMode from "@/components/SinglePlayerMode";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Gamepad2, Users, Trophy, Sparkles } from "lucide-react";
 
-interface IndexProps {
-  initialPlayer: Player | null;
-  initialAuthUser: AuthUser | null;
-}
+const Index = () => {
+  const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multiplayer'>('menu');
+  const { toast } = useToast();
 
-const Index: React.FC<IndexProps> = ({ initialPlayer, initialAuthUser }) => {
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(initialPlayer);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(initialAuthUser);
-  const [isJoining, setIsJoining] = useState(false);
-  const [username, setUsername] = useState('');
-  const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multi'>('menu');
-  const navigate = useNavigate();
-
-  const handleDiscordLogin = async () => {
-    await AuthService.signInWithDiscord();
-  };
-
-  const handleJoinAsGuest = async () => {
-    if (!username.trim()) return;
-    const guestUser = await AuthService.createGuestUser(username.trim());
-    setAuthUser(guestUser);
-    const newPlayer: Player = {
-      id: guestUser.id,
-      username: guestUser.username,
-      competitor_elo: guestUser.competitor_elo,
-      spectator_elo: guestUser.spectator_elo,
-      wins: 0,
-      losses: 0,
-      correct_votes: 0,
-      coins: 100,
-      role: 'Guest'
-    };
-    setCurrentPlayer(newPlayer);
-    setIsJoining(false);
+  // Mock current player - in real app this would come from auth
+  const currentPlayer: Player = {
+    id: 'current-user',
+    username: 'You',
+    competitor_elo: 1100,
+    spectator_elo: 1200,
+    wins: 8,
+    losses: 5,
+    correct_votes: 28,
+    coins: 175,
+    role: 'Silver III'
   };
 
   const handleGameEnd = (winner: Player) => {
-    console.log(`Game ended! Winner: ${winner.username}`);
-    setGameMode('menu');
+    toast({
+      title: "🎉 Game Complete!",
+      description: `${winner.username} wins! ${winner.id === currentPlayer.id ? 'Congratulations!' : 'Better luck next time!'}`,
+    });
+    
+    // Return to menu after 3 seconds
+    setTimeout(() => {
+      setGameMode('menu');
+    }, 3000);
   };
-  
-  const handleSetPlayer = (user: AuthUser) => {
-    const player: Player = {
-      id: user.id,
-      username: user.username,
-      competitor_elo: user.competitor_elo,
-      spectator_elo: user.spectator_elo,
-      wins: user.games_won,
-      losses: user.games_played - user.games_won,
-      correct_votes: user.total_votes_received,
-      coins: user.coins,
-      role: user.competitor_elo >= 1200 ? 'Gold II' : 'Silver III'
-    };
-    setCurrentPlayer(player);
-  }
 
-  if (gameMode === 'single' && currentPlayer) {
+  if (gameMode === 'single') {
     return <SinglePlayerMode currentPlayer={currentPlayer} onGameEnd={handleGameEnd} />;
   }
-  
-  if (gameMode === 'multi' && currentPlayer) {
+
+  if (gameMode === 'multiplayer') {
     return <GameBoard currentPlayer={currentPlayer} onGameEnd={handleGameEnd} />;
   }
 
-  if (authUser) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-8 max-w-4xl mx-auto">
-          <div className="space-y-4">
-            <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
-              Sound Royale
-            </h1>
-            
-            <div className="bg-slate-800/50 border border-green-500/30 rounded-xl p-8 max-w-md mx-auto">
-              <div className="flex items-center justify-center gap-3 mb-6">
-                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <h2 className="text-2xl font-bold text-green-400">Connected!</h2>
-                  <p className="text-slate-300 text-lg">{authUser.discord_username || authUser.username}</p>
-                  {authUser.discord_id && (
-                    <p className="text-xs text-slate-500">Discord Profile Linked</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-                <div className="bg-slate-900/50 rounded-lg p-3">
-                  <span className="text-orange-400 font-medium">Competitor</span>
-                  <div className="text-2xl font-bold text-white">{authUser.competitor_elo}</div>
-                  <div className="text-xs text-slate-400">ELO Rating</div>
-                </div>
-                <div className="bg-slate-900/50 rounded-lg p-3">
-                  <span className="text-blue-400 font-medium">Spectator</span>
-                  <div className="text-2xl font-bold text-white">{authUser.spectator_elo}</div>
-                  <div className="text-xs text-slate-400">ELO Rating</div>
-                </div>
-                <div className="bg-slate-900/50 rounded-lg p-3">
-                  <span className="text-yellow-400 font-medium">Coins</span>
-                  <div className="text-2xl font-bold text-white">{authUser.coins}</div>
-                  <div className="text-xs text-slate-400">Currency</div>
-                </div>
-                <div className="bg-slate-900/50 rounded-lg p-3">
-                  <span className="text-green-400 font-medium">Record</span>
-                  <div className="text-2xl font-bold text-white">{authUser.games_won}W</div>
-                  <div className="text-xs text-slate-400">{authUser.games_played - authUser.games_won}L</div>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <Button
-                  onClick={() => { handleSetPlayer(authUser); setGameMode('single'); }}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-4 text-xl rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
-                >
-                  <Gamepad2 className="w-6 h-6 mr-2" />
-                  Practice Mode (AI)
-                </Button>
-                
-                <Button
-                  onClick={() => { handleSetPlayer(authUser); setGameMode('multi'); }}
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 text-xl rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
-                >
-                  <Gamepad2 className="w-6 h-6 mr-2" />
-                  Multiplayer Arena
-                </Button>
-              </div>
-              
-              <Button
-                onClick={async () => {
-                  await AuthService.signOut();
-                  setAuthUser(null);
-                  setCurrentPlayer(null);
-                }}
-                variant="outline"
-                size="sm"
-                className="w-full mt-3 border-slate-600 text-slate-400 hover:bg-slate-700"
-              >
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isJoining) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800/80 border border-purple-500/30 rounded-lg p-8 max-w-md w-full">
-          <h2 className="text-2xl font-bold text-cyan-400 mb-6 text-center">Join as Guest</h2>
-          <div className="space-y-4">
-            <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username..."
-              className="bg-slate-700 border-slate-600 text-white"
-              onKeyPress={(e) => e.key === 'Enter' && handleJoinAsGuest()}
-            />
-            <div className="flex gap-3">
-              <Button onClick={handleJoinAsGuest} disabled={!username.trim()} className="flex-1 bg-purple-600">Join</Button>
-              <Button onClick={() => setIsJoining(false)} variant="outline">Back</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center space-y-8 max-w-4xl mx-auto">
-          <div className="space-y-4">
-            <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
-              Sound Royale
-            </h1>
-            <p className="text-2xl text-slate-300 font-medium">
-              Discord-Integrated Music Genre Battle Royale
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="text-center space-y-8 max-w-4xl mx-auto">
+        <div className="space-y-4">
+          <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
+            Sound Royale
+          </h1>
+          <p className="text-2xl text-slate-300 font-medium">
+            The ultimate music production battle arena
+          </p>
+        </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button
-                onClick={handleDiscordLogin}
-                size="lg"
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold px-12 py-6 text-xl rounded-xl shadow-2xl"
-              >
-                <LogIn className="w-6 h-6 mr-2" />
-                Connect Discord
-              </Button>
-              <Button
-                onClick={() => navigate('/signup')}
-                size="lg"
-                variant="outline"
-                className="border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-white font-bold px-12 py-6 text-xl rounded-xl"
-              >
-                <Mail className="w-6 h-6 mr-2" />
-                Sign up with Email
-              </Button>
+        {/* Player Stats Card */}
+        <Card className="bg-slate-800/50 border-purple-500/30 max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {currentPlayer.username.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              {currentPlayer.username}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+              <Trophy className="w-5 h-5 mx-auto mb-1 text-orange-400" />
+              <div className="text-orange-400 font-medium">ELO</div>
+              <div className="text-xl font-bold text-white">{currentPlayer.competitor_elo}</div>
             </div>
-            <Button
-                onClick={() => setIsJoining(true)}
-                size="lg"
-                variant="link"
-                className="text-slate-400"
-              >
-                ...or play as a guest
-              </Button>
+            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+              <Users className="w-5 h-5 mx-auto mb-1 text-blue-400" />
+              <div className="text-blue-400 font-medium">W/L</div>
+              <div className="text-xl font-bold text-white">{currentPlayer.wins}/{currentPlayer.losses}</div>
+            </div>
+            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+              <Sparkles className="w-5 h-5 mx-auto mb-1 text-green-400" />
+              <div className="text-green-400 font-medium">Votes</div>
+              <div className="text-xl font-bold text-white">{currentPlayer.correct_votes}</div>
+            </div>
+            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+              <Sparkles className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
+              <div className="text-yellow-400 font-medium">Coins</div>
+              <div className="text-xl font-bold text-white">{currentPlayer.coins}</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Game Mode Selection */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <Button
+            onClick={() => setGameMode('single')}
+            size="lg"
+            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-bold p-8 h-auto flex flex-col gap-4 rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
+          >
+            <Gamepad2 className="w-12 h-12" />
+            <div>
+              <div className="text-xl font-bold">Practice Mode</div>
+              <div className="text-sm opacity-90">Battle against AI</div>
+            </div>
+          </Button>
+
+          <Button
+            onClick={() => setGameMode('multiplayer')}
+            size="lg"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold p-8 h-auto flex flex-col gap-4 rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
+          >
+            <Users className="w-12 h-12" />
+            <div>
+              <div className="text-xl font-bold">Multiplayer</div>
+              <div className="text-sm opacity-90">Battle real players</div>
+            </div>
+          </Button>
+        </div>
+
+        {/* Features */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-400">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>Real-time genre challenges</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-yellow-400" />
+            <span>ELO ranking system</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-400" />
+            <span>Spectator voting</span>
           </div>
         </div>
       </div>
-    );
+    </div>
+  );
 };
 
 export default Index;

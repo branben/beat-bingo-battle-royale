@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { GameState, Player } from '@/types/game';
 import { generateBingoCard, selectGenre, checkBingo } from '@/utils/gameLogic';
@@ -204,9 +203,9 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     console.log('🎵 Current game status:', gameState.status);
 
     const newGenre = selectGenre(
-      gameState.called_genres,
-      gameState.player1_card,
-      gameState.player2_card
+      gameState.player1_card.squares.flat(),
+      gameState.player2_card.squares.flat(),
+      gameState.called_genres
     );
 
     console.log('🎵 New genre selected:', newGenre);
@@ -216,7 +215,9 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       const updatedState = {
         ...prev,
         called_genres: [...prev.called_genres, newGenre],
+        calledGenres: [...prev.calledGenres, newGenre],
         current_call: newGenre,
+        currentGenre: newGenre,
         status: 'active' as const,
         voting_deadline: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes for production
       };
@@ -262,14 +263,17 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         return {
           ...prev,
           [isPlayer1 ? 'player1_card' : 'player2_card']: newCard,
+          [isPlayer1 ? 'player1Card' : 'player2Card']: newCard,
           winner_id: winner.id,
+          winner: winner.id,
           status: 'finished'
         };
       }
 
       return {
         ...prev,
-        [isPlayer1 ? 'player1_card' : 'player2_card']: newCard
+        [isPlayer1 ? 'player1_card' : 'player2_card']: newCard,
+        [isPlayer1 ? 'player1Card' : 'player2Card']: newCard
       };
     });
   };
@@ -341,6 +345,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                 // Determine winner and mark their square
                 const winner = player1Votes > player2Votes ? gameState.player1 : gameState.player2;
                 const winnerCard = player1Votes > player2Votes ? 'player1_card' : 'player2_card';
+                const winnerCardCamel = player1Votes > player2Votes ? 'player1Card' : 'player2Card';
                 const winnerVotePercent = (player1Votes > player2Votes ? player1Votes : player2Votes) / totalVotes * 100;
                 
                 // Update analytics
@@ -379,7 +384,9 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                     ...current, 
                     status: 'finished',
                     [winnerCard]: updatedCard,
-                    winner_id: winner.id
+                    [winnerCardCamel]: updatedCard,
+                    winner_id: winner.id,
+                    winner: winner.id
                   } : null);
                   toast({
                     title: "🎉 BINGO!",
@@ -391,7 +398,9 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                     ...current, 
                     status: 'waiting',
                     [winnerCard]: updatedCard,
+                    [winnerCardCamel]: updatedCard,
                     current_call: null,
+                    currentGenre: undefined,
                     votes: {}
                   } : null);
                   toast({
@@ -414,6 +423,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                   ...current, 
                   status: 'waiting',
                   current_call: null,
+                  currentGenre: undefined,
                   votes: {}
                 } : null);
                 setTimeout(() => {
@@ -488,6 +498,14 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
 
   const isCurrentPlayerCompeting = currentPlayer && (currentPlayer.id === gameState.player1.id || currentPlayer.id === gameState.player2.id);
   const currentPlayerReady = currentPlayer ? playersReady.has(currentPlayer.id) : false;
+
+  // Convert votes to array format for VotingPanel
+  const votesArray = Object.entries(gameState.votes).map(([voterId, playerId]) => ({
+    id: voterId,
+    playerId,
+    voterName: mockSpectators.find(s => s.id === voterId)?.username || 'Unknown',
+    power: mockSpectators.find(s => s.id === voterId)?.spectator_elo / 1000 || 1
+  }));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
@@ -623,14 +641,12 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         {gameState.status === 'voting' && (
           <div className="space-y-4">
             <VotingPanel
-              player1={gameState.player1}
-              player2={gameState.player2}
-              spectators={gameState.spectators}
-              votes={gameState.votes}
-              onVote={handleVote}
-              currentSpectator={currentPlayer}
-              timeRemaining={timeRemaining}
+              players={gameState.players}
               currentGenre={gameState.current_call || ''}
+              timeRemaining={timeRemaining}
+              votes={votesArray}
+              onVote={handleVote}
+              currentPlayer={currentPlayer}
             />
             
             {/* Development Skip Button for Voting */}
@@ -740,8 +756,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         {/* Player Stats */}
         {gameState.status !== 'waiting' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <PlayerStats player={gameState.player1} isCompact />
-            <PlayerStats player={gameState.player2} isCompact />
+            <PlayerStats player={gameState.player1} />
+            <PlayerStats player={gameState.player2} />
           </div>
         )}
 

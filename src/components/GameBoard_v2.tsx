@@ -58,14 +58,14 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const joinMatchMutation = useJoinMatch();
   const updateMatchMutation = useUpdateMatchStatus();
   const submitVoteMutation = useSubmitVote();
-  const { data: currentVotes } = useMatchVotes(currentMatchId || '', gameState?.currentRound);
+  const { data: currentVotes } = useMatchVotes(currentMatchId || '', gameState?.currentRound || 0);
   const { data: roundResults } = useRoundResults(
     currentMatchId || '', 
     gameState?.currentRound || 0
   );
 
   // Real-time subscriptions
-  useGameRealtime(currentMatchId || '', gameState?.currentRound);
+  useGameRealtime(currentMatchId || '', gameState?.currentRound || 0);
 
   // Helper function to format time
   const formatTime = (seconds: number) => {
@@ -213,7 +213,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     try {
       const player1_genres = gameState.player1Card?.squares?.flat() || [];
       const player2_genres = gameState.player2Card?.squares?.flat() || [];
-      const genre = selectGenre(player1_genres, player2_genres, gameState.calledGenres);
+      const genre = selectGenre(player1_genres, player2_genres, gameState.called_genres);
 
       if (!genre) {
         await handleGameEnd();
@@ -229,7 +229,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         updates: {
           current_genre: genre,
           current_round: newRound,
-          called_genres: [...gameState.calledGenres, genre],
+          called_genres: [...gameState.called_genres, genre],
           voting_deadline: votingDeadline.toISOString(),
           total_rounds: newRound
         }
@@ -549,7 +549,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
           </h1>
           <div className="flex justify-center items-center gap-6 text-lg text-slate-300">
             <span>Game #{gameState.matchNumber || '---'}</span>
-            <span>{gameState.calledGenres?.length || 0} Genres Called</span>
+            <span>{gameState.called_genres?.length || 0} Genres Called</span>
             <span>{gameState.spectatorCount || 0} Spectators</span>
           </div>
         </div>
@@ -634,7 +634,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                   <PlayerStats player={player} />
                   <BingoCard
                     card={index === 0 ? gameState.player1Card : gameState.player2Card}
-                    calledGenres={gameState.calledGenres || []}
+                    calledGenres={gameState.called_genres || []}
                     isBlinded={blindedPlayers.has(player.id)}
                     playerName={player.username}
                   />
@@ -651,7 +651,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                   timeRemaining={timeRemaining}
                   votes={currentVotes?.map(vote => ({
                     id: vote.voter_id,
-                    playerId: vote.voted_for_player_id,
+                    playerId: vote.voted_for_id,
                     voterName: vote.voter?.username || 'Unknown',
                     power: vote.vote_power
                   })) || []}
