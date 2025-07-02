@@ -30,7 +30,7 @@ export function selectGenre(called: string[], p1_card: BingoCard, p2_card: Bingo
   const p1_genres = p1_card.squares.flat();
   const p2_genres = p2_card.squares.flat();
   const playable = available.filter(genre => 
-    p1_genres.includes(genre) || p2_genres.includes(genre)
+    p1_genres.includes(genre) && p2_genres.includes(genre)
   );
   
   if (playable.length > 0) {

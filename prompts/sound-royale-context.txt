@@ -1,0 +1,12 @@
+IMPORTANT: Read the full context from GEMINI.md in the project root.
+
+You are helping develop Sound Royale, a Discord-integrated music battle royale game.
+
+CURRENT PRIORITY: Phase 2B - Audio Integration
+- Building AudioUpload.tsx component right now
+- Need audio upload/playback system with Supabase Storage
+- File validation: MP3/WAV, 10MB max, 30s-5min duration
+
+TECH STACK: React 18 + TypeScript + Vite + Tailwind + Supabase + shadcn/ui
+
+CONTEXT: See GEMINI.md for complete technical details, architecture, and current development status.

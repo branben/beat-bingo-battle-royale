@@ -5,9 +5,10 @@ import { generateBingoCard, selectGenre, checkBingo } from '@/utils/gameLogic';
 import BingoCard from './BingoCard';
 import VotingPanel from './VotingPanel';
 import PlayerStats from './PlayerStats';
+import { GameAnalytics } from './GameAnalytics';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Play, Users, CheckCircle, Clock } from 'lucide-react';
+import { Sparkles, Play, Users, CheckCircle, Clock, Timer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface GameBoardProps {
@@ -20,7 +21,26 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const [timeRemaining, setTimeRemaining] = useState(300);
   const [blindedPlayers, setBlindedPlayers] = useState<Set<string>>(new Set());
   const [playersReady, setPlayersReady] = useState<Set<string>>(new Set());
+  const [mockVotingActive, setMockVotingActive] = useState(false);
+  const [gameAnalytics, setGameAnalytics] = useState({
+    startTime: Date.now(),
+    totalVotes: 0,
+    roundDetails: [] as Array<{
+      round: number;
+      genre: string;
+      winner: string;
+      votingMargin: number;
+      timeTaken: number;
+    }>
+  });
   const { toast } = useToast();
+
+  // Helper function to format time
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   // Mock data for demonstration
   const mockPlayers: Player[] = [
@@ -103,6 +123,11 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
 
     setGameState(newGame);
     setPlayersReady(new Set());
+    setGameAnalytics({
+      startTime: Date.now(),
+      totalVotes: 0,
+      roundDetails: []
+    });
     toast({
       title: "Game Started!",
       description: "Both players must agree to call the first genre.",
@@ -110,6 +135,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   };
 
   const handlePlayerReady = (playerId: string) => {
+    if (!gameState || gameState.status !== 'waiting') return;
+
     const newReadyPlayers = new Set(playersReady);
     
     if (newReadyPlayers.has(playerId)) {
@@ -124,12 +151,30 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         title: "Player Ready!",
         description: `${playerId === '1' ? 'BeatMaster_2024' : 'RhythmKing'} is ready to start production.`,
       });
+      
+      // Auto-ready the other player after a short delay for demo purposes
+      if (newReadyPlayers.size === 1) {
+        const otherPlayerId = playerId === '1' ? '2' : '1';
+        console.log('🔄 Auto-readying other player:', otherPlayerId);
+        setTimeout(() => {
+          setPlayersReady(new Set([playerId, otherPlayerId]));
+          toast({
+            title: "Player Ready!",
+            description: `${otherPlayerId === '1' ? 'BeatMaster_2024' : 'RhythmKing'} is ready to start production.`,
+          });
+          console.log('🔄 Scheduling callGenre from auto-ready');
+          setTimeout(() => callGenre(), 1000);
+        }, 2000);
+        return; // Exit early to prevent main check from running
+      }
     }
     
     setPlayersReady(newReadyPlayers);
     
     // If both players are ready, automatically call the genre
+    // Note: This won't trigger when auto-ready happens because of the early return above
     if (newReadyPlayers.size === 2 && gameState) {
+      console.log('🔄 Both players ready, scheduling callGenre from main check');
       setTimeout(() => callGenre(), 1000); // Small delay for better UX
     }
   };
@@ -137,19 +182,29 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const callGenre = () => {
     if (!gameState) return;
 
+    console.log('🎵 callGenre() called - Current called genres:', gameState.called_genres);
+    console.log('🎵 Current game status:', gameState.status);
+
     const newGenre = selectGenre(
       gameState.called_genres,
       gameState.player1_card,
       gameState.player2_card
     );
 
-    setGameState(prev => prev ? {
-      ...prev,
-      called_genres: [...prev.called_genres, newGenre],
-      current_call: newGenre,
-      status: 'active',
-      voting_deadline: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes for production
-    } : null);
+    console.log('🎵 New genre selected:', newGenre);
+
+    setGameState(prev => {
+      if (!prev) return null;
+      const updatedState = {
+        ...prev,
+        called_genres: [...prev.called_genres, newGenre],
+        current_call: newGenre,
+        status: 'active' as const,
+        voting_deadline: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes for production
+      };
+      console.log('🎵 Updated called genres array:', updatedState.called_genres);
+      return updatedState;
+    });
 
     setTimeRemaining(1800); // 30 minutes in seconds
     setPlayersReady(new Set()); // Reset ready states
@@ -201,6 +256,39 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     });
   };
 
+  const startMockVoting = () => {
+    if (!gameState || gameState.status !== 'voting' || mockVotingActive) return;
+    
+    setMockVotingActive(true);
+    console.log('🤖 Starting mock spectator voting...');
+    
+    // Simulate 3-5 spectator votes over 10-15 seconds
+    const numVotes = Math.floor(Math.random() * 3) + 3; // 3-5 votes
+    
+    for (let i = 0; i < numVotes; i++) {
+      setTimeout(() => {
+        if (gameState && gameState.status === 'voting') {
+          const spectatorId = `spectator_${i + 1}`;
+          const randomPlayer = Math.random() > 0.5 ? gameState.player1.id : gameState.player2.id;
+          
+          setGameState(prev => prev ? {
+            ...prev,
+            votes: {
+              ...prev.votes,
+              [spectatorId]: randomPlayer
+            }
+          } : null);
+          
+          const playerName = randomPlayer === gameState.player1.id ? gameState.player1.username : gameState.player2.username;
+          console.log(`🗳️ Mock spectator ${spectatorId} voted for ${playerName}`);
+        }
+      }, (i + 1) * (Math.random() * 3000 + 2000)); // Random delay between 2-5 seconds
+    }
+    
+    // Reset mock voting state after all votes
+    setTimeout(() => setMockVotingActive(false), numVotes * 5000 + 2000);
+  };
+
   const handleVote = (playerId: string) => {
     if (!gameState || !currentPlayer) return;
 
@@ -214,15 +302,124 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   };
 
   useEffect(() => {
-    if (gameState?.status === 'voting' && timeRemaining > 0) {
+    if ((gameState?.status === 'voting' || gameState?.status === 'active') && timeRemaining >= 0) {
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1) {
-            // Voting ended, determine winner
-            const totalVotes = Object.keys(gameState.votes).length;
-            if (totalVotes >= 3) { // Minimum spectators
-              // Process votes and continue game
-              setGameState(current => current ? { ...current, status: 'active' } : null);
+            if (gameState?.status === 'voting') {
+              // Voting ended, determine winner
+              const totalVotes = Object.keys(gameState.votes).length;
+              console.log('🗳️ Voting ended. Total votes:', totalVotes);
+              
+              // For demo purposes, proceed even with fewer than 3 votes
+              if (totalVotes > 0) {
+                // Process votes and determine winner
+                const votes = gameState.votes;
+                const player1Votes = Object.values(votes).filter(v => v === gameState.player1.id).length;
+                const player2Votes = Object.values(votes).filter(v => v === gameState.player2.id).length;
+                
+                console.log('🗳️ Vote tally:', { player1Votes, player2Votes });
+                
+                // Determine winner and mark their square
+                const winner = player1Votes > player2Votes ? gameState.player1 : gameState.player2;
+                const winnerCard = player1Votes > player2Votes ? 'player1_card' : 'player2_card';
+                const winnerVotePercent = (player1Votes > player2Votes ? player1Votes : player2Votes) / totalVotes * 100;
+                
+                // Update analytics
+                setGameAnalytics(prev => ({
+                  ...prev,
+                  totalVotes: prev.totalVotes + totalVotes,
+                  roundDetails: [...prev.roundDetails, {
+                    round: gameState.called_genres.length,
+                    genre: gameState.current_call!,
+                    winner: winner.username,
+                    votingMargin: winnerVotePercent,
+                    timeTaken: 300 - timeRemaining + 300 // Production time + voting time
+                  }]
+                }));
+                
+                // Find the position of the current genre on winner's card and mark it
+                const updatedCard = { ...gameState[winnerCard] };
+                const currentGenre = gameState.current_call;
+                
+                // Find and mark the genre square
+                for (let i = 0; i < 5; i++) {
+                  for (let j = 0; j < 5; j++) {
+                    if (updatedCard.squares[i][j] === currentGenre) {
+                      updatedCard.marked[i][j] = true;
+                      console.log(`🎯 Marked ${currentGenre} at position [${i},${j}] for ${winner.username}`);
+                      break;
+                    }
+                  }
+                }
+                
+                // Check for bingo
+                const hasBingo = checkBingo(updatedCard);
+                
+                if (hasBingo) {
+                  setGameState(current => current ? { 
+                    ...current, 
+                    status: 'finished',
+                    [winnerCard]: updatedCard,
+                    winner_id: winner.id
+                  } : null);
+                  toast({
+                    title: "🎉 BINGO!",
+                    description: `${winner.username} wins the match!`,
+                  });
+                } else {
+                  // Continue game - call next genre
+                  setGameState(current => current ? { 
+                    ...current, 
+                    status: 'waiting',
+                    [winnerCard]: updatedCard,
+                    current_call: null,
+                    votes: {}
+                  } : null);
+                  toast({
+                    title: `🏆 ${winner.username} wins this round!`,
+                    description: "Get ready for the next genre call.",
+                  });
+                  // Auto-ready players for next round
+                  setTimeout(() => {
+                    setPlayersReady(new Set(['1', '2']));
+                    setTimeout(() => callGenre(), 1000);
+                  }, 2000);
+                }
+              } else {
+                // No votes, continue without marking
+                toast({
+                  title: "⏰ No Votes",
+                  description: "Round ends with no votes. Starting next round.",
+                });
+                setGameState(current => current ? { 
+                  ...current, 
+                  status: 'waiting',
+                  current_call: null,
+                  votes: {}
+                } : null);
+                setTimeout(() => {
+                  setPlayersReady(new Set(['1', '2']));
+                  setTimeout(() => callGenre(), 1000);
+                }, 2000);
+              }
+            } else if (gameState?.status === 'active') {
+              // Production time ended, move to voting
+              setGameState(current => current ? { 
+                ...current, 
+                status: 'voting',
+                voting_deadline: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes for voting
+              } : null);
+              setTimeRemaining(300); // 5 minutes in seconds
+              toast({
+                title: "⏰ Time's Up!",
+                description: "Production phase complete. Voting begins now!",
+              });
+              
+              // Start mock voting after a short delay
+              setTimeout(() => startMockVoting(), 2000);
+              
+              return 300;
             }
             return 0;
           }
@@ -232,7 +429,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
 
       return () => clearInterval(timer);
     }
-  }, [gameState?.status, timeRemaining]);
+  }, [gameState?.status, timeRemaining, toast]);
 
   if (!gameState) {
     return (
@@ -317,20 +514,15 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                     <Clock className="text-yellow-400" size={20} />
                   )}
                 </div>
-                {isCurrentPlayerCompeting && currentPlayer?.id === gameState.player1.id && (
-                  <Button
-                    onClick={() => handlePlayerReady(gameState.player1.id)}
-                    variant={currentPlayerReady ? "secondary" : "default"}
-                    className={currentPlayerReady ? "bg-green-600 hover:bg-green-700" : ""}
-                  >
-                    {currentPlayerReady ? "Ready!" : "Mark Ready"}
-                  </Button>
-                )}
-                {!isCurrentPlayerCompeting && (
-                  <Badge variant={playersReady.has(gameState.player1.id) ? "default" : "outline"}>
-                    {playersReady.has(gameState.player1.id) ? "Ready" : "Waiting"}
-                  </Badge>
-                )}
+                {/* Always show ready button for demo purposes */}
+                <Button
+                  onClick={() => handlePlayerReady(gameState.player1.id)}
+                  variant={playersReady.has(gameState.player1.id) ? "secondary" : "default"}
+                  className={playersReady.has(gameState.player1.id) ? "bg-green-600 hover:bg-green-700" : ""}
+                  disabled={playersReady.has(gameState.player1.id)}
+                >
+                  {playersReady.has(gameState.player1.id) ? "Ready!" : "Mark Ready"}
+                </Button>
               </div>
 
               {/* Player 2 Ready Status */}
@@ -343,20 +535,15 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                     <Clock className="text-yellow-400" size={20} />
                   )}
                 </div>
-                {isCurrentPlayerCompeting && currentPlayer?.id === gameState.player2.id && (
-                  <Button
-                    onClick={() => handlePlayerReady(gameState.player2.id)}
-                    variant={currentPlayerReady ? "secondary" : "default"}
-                    className={currentPlayerReady ? "bg-green-600 hover:bg-green-700" : ""}
-                  >
-                    {currentPlayerReady ? "Ready!" : "Mark Ready"}
-                  </Button>
-                )}
-                {!isCurrentPlayerCompeting && (
-                  <Badge variant={playersReady.has(gameState.player2.id) ? "default" : "outline"}>
-                    {playersReady.has(gameState.player2.id) ? "Ready" : "Waiting"}
-                  </Badge>
-                )}
+                {/* Always show ready button for demo purposes */}
+                <Button
+                  onClick={() => handlePlayerReady(gameState.player2.id)}
+                  variant={playersReady.has(gameState.player2.id) ? "secondary" : "default"}
+                  className={playersReady.has(gameState.player2.id) ? "bg-green-600 hover:bg-green-700" : ""}
+                  disabled={playersReady.has(gameState.player2.id)}
+                >
+                  {playersReady.has(gameState.player2.id) ? "Ready!" : "Mark Ready"}
+                </Button>
               </div>
             </div>
 
@@ -377,28 +564,145 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
               {gameState.current_call}
               <Sparkles className="text-yellow-400" />
             </h2>
-            <p className="text-sm text-slate-400 mt-2">
-              Production Phase: 30 minutes to create your beat
-            </p>
+            <div className="flex items-center justify-center gap-4 mt-2 text-slate-300">
+              <p className="text-sm text-slate-400">
+                Production Phase: Create your beat
+              </p>
+              <div className="flex items-center gap-2">
+                <Timer size={18} />
+                <span className={timeRemaining <= 60 ? "text-red-400 font-bold" : "text-white font-semibold"}>
+                  {formatTime(timeRemaining)}
+                </span>
+              </div>
+              {/* Development Skip Button */}
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  onClick={() => {
+                    setGameState(current => current ? { 
+                      ...current, 
+                      status: 'voting',
+                      voting_deadline: new Date(Date.now() + 5 * 60 * 1000)
+                    } : null);
+                    setTimeRemaining(300);
+                    setTimeout(() => startMockVoting(), 1000);
+                    toast({
+                      title: "⏩ Skipped to Voting",
+                      description: "Development skip activated",
+                    });
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-yellow-500 text-yellow-400 hover:bg-yellow-500/10"
+                >
+                  Skip to Voting
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
         {/* Voting Panel */}
         {gameState.status === 'voting' && (
-          <VotingPanel
-            player1={gameState.player1}
-            player2={gameState.player2}
-            spectators={gameState.spectators}
-            votes={gameState.votes}
-            onVote={handleVote}
-            currentSpectator={currentPlayer}
-            timeRemaining={timeRemaining}
-            currentGenre={gameState.current_call || ''}
-          />
+          <div className="space-y-4">
+            <VotingPanel
+              player1={gameState.player1}
+              player2={gameState.player2}
+              spectators={gameState.spectators}
+              votes={gameState.votes}
+              onVote={handleVote}
+              currentSpectator={currentPlayer}
+              timeRemaining={timeRemaining}
+              currentGenre={gameState.current_call || ''}
+            />
+            
+            {/* Development Skip Button for Voting */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="flex justify-center gap-4">
+                <Button
+                  onClick={() => {
+                    // Force voting to end with current votes
+                    setTimeRemaining(0);
+                    toast({
+                      title: "⏩ Skipped Voting Timer",
+                      description: "Development skip activated",
+                    });
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-red-500 text-red-400 hover:bg-red-500/10"
+                >
+                  Skip Voting Timer
+                </Button>
+                
+                <Button
+                  onClick={() => {
+                    if (!mockVotingActive) {
+                      startMockVoting();
+                      toast({
+                        title: "🤖 Mock Voting Started",
+                        description: "Simulating spectator votes",
+                      });
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                  disabled={mockVotingActive}
+                >
+                  {mockVotingActive ? 'Voting...' : 'Start Mock Voting'}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Game End Screen */}
+        {gameState.status === 'finished' && gameState.winner_id && (
+          <div className="text-center p-8 bg-gradient-to-r from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-lg">
+            <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center gap-2">
+              🎉 GAME OVER! 🎉
+            </h2>
+            <h3 className="text-2xl font-semibold text-green-400 mb-6">
+              {gameState.winner_id === gameState.player1.id ? gameState.player1.username : gameState.player2.username} WINS!
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto mb-6">
+              <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">Final Stats</h4>
+                <p className="text-slate-300">Winner: {gameState.winner_id === gameState.player1.id ? gameState.player1.username : gameState.player2.username}</p>
+                <p className="text-slate-300">ELO: {gameState.winner_id === gameState.player1.id ? gameState.player1.competitor_elo : gameState.player2.competitor_elo}</p>
+                <p className="text-slate-300">Rank: {gameState.winner_id === gameState.player1.id ? gameState.player1.role : gameState.player2.role}</p>
+              </div>
+              <div className="bg-slate-800/50 border border-slate-600 rounded-lg p-4">
+                <h4 className="font-semibold text-white mb-2">Match Summary</h4>
+                <p className="text-slate-300">Genres Called: {gameState.called_genres.length}</p>
+                <p className="text-slate-300">Total Votes: {Object.keys(gameState.votes).length}</p>
+                <p className="text-slate-300">Spectators: {gameState.spectators.length}</p>
+              </div>
+            </div>
+            
+            {/* Development Reset Button */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                onClick={() => {
+                  setGameState(null);
+                  setPlayersReady(new Set());
+                  setTimeRemaining(300);
+                  setMockVotingActive(false);
+                  toast({
+                    title: "🔄 Game Reset",
+                    description: "Starting a new game",
+                  });
+                }}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Start New Game
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Game Boards */}
-        {gameState.status !== 'waiting' && (
+        {gameState.status !== 'waiting' && gameState.status !== 'finished' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <BingoCard
               card={gameState.player1_card}
@@ -428,10 +732,19 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         {/* Game Controls */}
         <div className="text-center">
           {gameState.status === 'finished' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <h2 className="text-3xl font-bold text-yellow-400">
                 🎉 {gameState.winner_id === gameState.player1.id ? gameState.player1.username : gameState.player2.username} Wins! 🎉
               </h2>
+              
+              {/* Game Analytics */}
+              <GameAnalytics 
+                gameState={gameState}
+                gameDuration={Math.floor((Date.now() - gameAnalytics.startTime) / 1000)}
+                totalVotes={gameAnalytics.totalVotes}
+                roundDetails={gameAnalytics.roundDetails}
+              />
+              
               <Button
                 onClick={startNewGame}
                 size="lg"

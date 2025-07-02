@@ -1,108 +1,160 @@
 
 import React, { useState } from 'react';
-import GameBoard from '@/components/GameBoard';
+import GameBoard from '@/components/GameBoard_v2';
+import SinglePlayerMode from '@/components/SinglePlayerMode';
 import { Player } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Users, Trophy, Gamepad2 } from 'lucide-react';
+import { Users, Trophy, Gamepad2, LogIn, Mail } from 'lucide-react';
+import { AuthService, AuthUser } from '@/lib/auth';
+import { useNavigate } from 'react-router-dom';
 
-const Index = () => {
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-  const [username, setUsername] = useState('');
+interface IndexProps {
+  initialPlayer: Player | null;
+  initialAuthUser: AuthUser | null;
+}
+
+const Index: React.FC<IndexProps> = ({ initialPlayer, initialAuthUser }) => {
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(initialPlayer);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(initialAuthUser);
   const [isJoining, setIsJoining] = useState(false);
+  const [username, setUsername] = useState('');
+  const [gameMode, setGameMode] = useState<'menu' | 'single' | 'multi'>('menu');
+  const navigate = useNavigate();
 
-  const handleJoinAsSpectator = () => {
+  const handleDiscordLogin = async () => {
+    await AuthService.signInWithDiscord();
+  };
+
+  const handleJoinAsGuest = async () => {
     if (!username.trim()) return;
-    
+    const guestUser = await AuthService.createGuestUser(username.trim());
+    setAuthUser(guestUser);
     const newPlayer: Player = {
-      id: `player_${Date.now()}`,
-      username: username.trim(),
-      competitor_elo: 500,
-      spectator_elo: 1000,
+      id: guestUser.id,
+      username: guestUser.username,
+      competitor_elo: guestUser.competitor_elo,
+      spectator_elo: guestUser.spectator_elo,
       wins: 0,
       losses: 0,
       correct_votes: 0,
       coins: 100,
-      role: 'Bronze V'
+      role: 'Guest'
     };
-    
     setCurrentPlayer(newPlayer);
     setIsJoining(false);
   };
 
   const handleGameEnd = (winner: Player) => {
     console.log(`Game ended! Winner: ${winner.username}`);
-    // Here you would typically update the database and player stats
+    setGameMode('menu');
   };
+  
+  const handleSetPlayer = (user: AuthUser) => {
+    const player: Player = {
+      id: user.id,
+      username: user.username,
+      competitor_elo: user.competitor_elo,
+      spectator_elo: user.spectator_elo,
+      wins: user.games_won,
+      losses: user.games_played - user.games_won,
+      correct_votes: user.total_votes_received,
+      coins: user.coins,
+      role: user.competitor_elo >= 1200 ? 'Gold II' : 'Silver III'
+    };
+    setCurrentPlayer(player);
+  }
 
-  if (!currentPlayer && !isJoining) {
+  if (gameMode === 'single' && currentPlayer) {
+    return <SinglePlayerMode currentPlayer={currentPlayer} onGameEnd={handleGameEnd} />;
+  }
+  
+  if (gameMode === 'multi' && currentPlayer) {
+    return <GameBoard currentPlayer={currentPlayer} onGameEnd={handleGameEnd} />;
+  }
+
+  if (authUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center space-y-8 max-w-4xl mx-auto">
           <div className="space-y-4">
             <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
-              Beat Bingo Battle
+              Sound Royale
             </h1>
-            <p className="text-2xl text-slate-300 font-medium">
-              Discord-Integrated Music Genre Battle Royale
-            </p>
-            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-              Join real-time bingo battles with smart genre calling, weighted spectator voting, and competitive ELO rankings.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-12">
-            <div className="bg-slate-800/60 border border-purple-500/30 rounded-lg p-6 text-center">
-              <Gamepad2 className="mx-auto mb-4 text-purple-400" size={48} />
-              <h3 className="text-xl font-bold text-white mb-2">Smart Gameplay</h3>
-              <p className="text-slate-300">AI-powered genre selection ensures every game is competitive and engaging</p>
-            </div>
             
-            <div className="bg-slate-800/60 border border-cyan-500/30 rounded-lg p-6 text-center">
-              <Users className="mx-auto mb-4 text-cyan-400" size={48} />
-              <h3 className="text-xl font-bold text-white mb-2">Spectator Voting</h3>
-              <p className="text-slate-300">ELO-weighted voting system with real-time engagement and rewards</p>
+            <div className="bg-slate-800/50 border border-green-500/30 rounded-xl p-8 max-w-md mx-auto">
+              <div className="flex items-center justify-center gap-3 mb-6">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <h2 className="text-2xl font-bold text-green-400">Connected!</h2>
+                  <p className="text-slate-300 text-lg">{authUser.discord_username || authUser.username}</p>
+                  {authUser.discord_id && (
+                    <p className="text-xs text-slate-500">Discord Profile Linked</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+                <div className="bg-slate-900/50 rounded-lg p-3">
+                  <span className="text-orange-400 font-medium">Competitor</span>
+                  <div className="text-2xl font-bold text-white">{authUser.competitor_elo}</div>
+                  <div className="text-xs text-slate-400">ELO Rating</div>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-3">
+                  <span className="text-blue-400 font-medium">Spectator</span>
+                  <div className="text-2xl font-bold text-white">{authUser.spectator_elo}</div>
+                  <div className="text-xs text-slate-400">ELO Rating</div>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-3">
+                  <span className="text-yellow-400 font-medium">Coins</span>
+                  <div className="text-2xl font-bold text-white">{authUser.coins}</div>
+                  <div className="text-xs text-slate-400">Currency</div>
+                </div>
+                <div className="bg-slate-900/50 rounded-lg p-3">
+                  <span className="text-green-400 font-medium">Record</span>
+                  <div className="text-2xl font-bold text-white">{authUser.games_won}W</div>
+                  <div className="text-xs text-slate-400">{authUser.games_played - authUser.games_won}L</div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <Button
+                  onClick={() => { handleSetPlayer(authUser); setGameMode('single'); }}
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-4 text-xl rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
+                >
+                  <Gamepad2 className="w-6 h-6 mr-2" />
+                  Practice Mode (AI)
+                </Button>
+                
+                <Button
+                  onClick={() => { handleSetPlayer(authUser); setGameMode('multi'); }}
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 text-xl rounded-xl shadow-xl hover:scale-105 transition-all duration-300"
+                >
+                  <Gamepad2 className="w-6 h-6 mr-2" />
+                  Multiplayer Arena
+                </Button>
+              </div>
+              
+              <Button
+                onClick={async () => {
+                  await AuthService.signOut();
+                  setAuthUser(null);
+                  setCurrentPlayer(null);
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full mt-3 border-slate-600 text-slate-400 hover:bg-slate-700"
+              >
+                Sign Out
+              </Button>
             </div>
-            
-            <div className="bg-slate-800/60 border border-pink-500/30 rounded-lg p-6 text-center">
-              <Trophy className="mx-auto mb-4 text-pink-400" size={48} />
-              <h3 className="text-xl font-bold text-white mb-2">Competitive Ranking</h3>
-              <p className="text-slate-300">Climb from Bronze V to Grandmaster with dynamic ELO progression</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap justify-center gap-2 mb-6">
-              <Badge className="bg-purple-600/20 text-purple-300 border-purple-500/30">5x5 Bingo Cards</Badge>
-              <Badge className="bg-cyan-600/20 text-cyan-300 border-cyan-500/30">25 Music Genres</Badge>
-              <Badge className="bg-pink-600/20 text-pink-300 border-pink-500/30">Handicap System</Badge>
-              <Badge className="bg-green-600/20 text-green-300 border-green-500/30">Real-time Voting</Badge>
-              <Badge className="bg-yellow-600/20 text-yellow-300 border-yellow-500/30">Discord Integration</Badge>
-            </div>
-
-            <Button
-              onClick={() => setIsJoining(true)}
-              size="lg"
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-12 py-6 text-xl rounded-xl shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 hover:scale-105"
-            >
-              Join the Battle
-            </Button>
-            
-            <p className="text-sm text-slate-400">
-              Or connect with Discord for full features and leaderboard integration
-            </p>
-          </div>
-
-          <div className="bg-slate-800/30 border border-purple-500/20 rounded-lg p-6 text-left max-w-2xl mx-auto">
-            <h3 className="text-lg font-bold text-cyan-400 mb-3">How It Works:</h3>
-            <ol className="text-slate-300 space-y-2">
-              <li>1. Two players get unique 5x5 bingo cards with music genres</li>
-              <li>2. AI calls genres that exist on at least one player's card</li>
-              <li>3. Spectators vote on who performed the genre better (5min window)</li>
-              <li>4. Winner marks their square; first to get BINGO wins!</li>
-              <li>5. ELO ratings update based on performance and voting accuracy</li>
-            </ol>
           </div>
         </div>
       </div>
@@ -113,44 +165,18 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-slate-800/80 border border-purple-500/30 rounded-lg p-8 max-w-md w-full">
-          <h2 className="text-2xl font-bold text-cyan-400 mb-6 text-center">Join as Spectator</h2>
-          
+          <h2 className="text-2xl font-bold text-cyan-400 mb-6 text-center">Join as Guest</h2>
           <div className="space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-2">
-                Choose your username
-              </label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username..."
-                className="bg-slate-700 border-slate-600 text-white"
-                onKeyPress={(e) => e.key === 'Enter' && handleJoinAsSpectator()}
-              />
-            </div>
-            
-            <div className="text-sm text-slate-400 space-y-1">
-              <p>• Starting ELO: 1000 (Spectator), 500 (Competitor)</p>
-              <p>• Starting coins: 100</p>
-              <p>• Vote power: 1.0x (increases with ELO)</p>
-            </div>
-            
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter username..."
+              className="bg-slate-700 border-slate-600 text-white"
+              onKeyPress={(e) => e.key === 'Enter' && handleJoinAsGuest()}
+            />
             <div className="flex gap-3">
-              <Button
-                onClick={handleJoinAsSpectator}
-                disabled={!username.trim()}
-                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-              >
-                Join Game
-              </Button>
-              <Button
-                onClick={() => setIsJoining(false)}
-                variant="outline"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
-              >
-                Back
-              </Button>
+              <Button onClick={handleJoinAsGuest} disabled={!username.trim()} className="flex-1 bg-purple-600">Join</Button>
+              <Button onClick={() => setIsJoining(false)} variant="outline">Back</Button>
             </div>
           </div>
         </div>
@@ -158,7 +184,50 @@ const Index = () => {
     );
   }
 
-  return <GameBoard currentPlayer={currentPlayer} onGameEnd={handleGameEnd} />;
+  return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center space-y-8 max-w-4xl mx-auto">
+          <div className="space-y-4">
+            <h1 className="text-7xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse">
+              Sound Royale
+            </h1>
+            <p className="text-2xl text-slate-300 font-medium">
+              Discord-Integrated Music Genre Battle Royale
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Button
+                onClick={handleDiscordLogin}
+                size="lg"
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold px-12 py-6 text-xl rounded-xl shadow-2xl"
+              >
+                <LogIn className="w-6 h-6 mr-2" />
+                Connect Discord
+              </Button>
+              <Button
+                onClick={() => navigate('/signup')}
+                size="lg"
+                variant="outline"
+                className="border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-white font-bold px-12 py-6 text-xl rounded-xl"
+              >
+                <Mail className="w-6 h-6 mr-2" />
+                Sign up with Email
+              </Button>
+            </div>
+            <Button
+                onClick={() => setIsJoining(true)}
+                size="lg"
+                variant="link"
+                className="text-slate-400"
+              >
+                ...or play as a guest
+              </Button>
+          </div>
+        </div>
+      </div>
+    );
 };
 
 export default Index;

@@ -1,0 +1,409 @@
+-- Sound Royale - Complete Database Setup
+-- This is a bulletproof script that creates everything from scratch
+
+-- =====================================================
+-- COMPLETE CLEANUP FIRST
+-- =====================================================
+
+-- Drop everything that might exist
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    -- Drop any existing policies on storage.objects
+    FOR r IN (SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname LIKE '%audio%') LOOP
+        BEGIN
+            EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON storage.objects';
+        EXCEPTION 
+            WHEN OTHERS THEN NULL;
+        END;
+    END LOOP;
+    
+    -- Drop storage bucket
+    DELETE FROM storage.buckets WHERE id = 'audio-submissions';
+    
+    -- Drop views
+    DROP VIEW IF EXISTS public.leaderboard_competitors CASCADE;
+    DROP VIEW IF EXISTS public.leaderboard_spectators CASCADE;
+    
+    -- Drop triggers
+    DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    DROP TRIGGER IF EXISTS handle_updated_at_users ON public.users;
+    DROP TRIGGER IF EXISTS handle_updated_at_matches ON public.matches;
+    
+    -- Drop functions
+    DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+    DROP FUNCTION IF EXISTS public.handle_updated_at() CASCADE;
+    
+    -- Drop tables in dependency order
+    DROP TABLE IF EXISTS public.handicaps CASCADE;
+    DROP TABLE IF EXISTS public.votes CASCADE;
+    DROP TABLE IF EXISTS public.audio_submissions CASCADE;
+    DROP TABLE IF EXISTS public.matches CASCADE;
+    DROP TABLE IF EXISTS public.users CASCADE;
+    
+    RAISE NOTICE 'Complete cleanup finished';
+END
+$$;
+
+-- =====================================================
+-- ENABLE EXTENSIONS
+-- =====================================================
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- =====================================================
+-- CREATE TABLES
+-- =====================================================
+
+-- USERS TABLE
+CREATE TABLE public.users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  -- Discord OAuth data
+  discord_id TEXT UNIQUE,
+  discord_username TEXT,
+  discord_avatar TEXT,
+  
+  -- Game profile
+  username TEXT UNIQUE NOT NULL,
+  display_name TEXT,
+  
+  -- ELO ratings
+  competitor_elo INTEGER DEFAULT 500,
+  spectator_elo INTEGER DEFAULT 1000,
+  
+  -- Game statistics
+  games_played INTEGER DEFAULT 0,
+  games_won INTEGER DEFAULT 0,
+  rounds_won INTEGER DEFAULT 0,
+  total_votes_cast INTEGER DEFAULT 0,
+  total_votes_received INTEGER DEFAULT 0,
+  
+  -- Economy
+  coins INTEGER DEFAULT 100,
+  
+  -- Preferences
+  is_active BOOLEAN DEFAULT true,
+  last_seen TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- MATCHES TABLE
+CREATE TABLE public.matches (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  -- Match details
+  match_number INTEGER GENERATED ALWAYS AS IDENTITY,
+  status TEXT CHECK (status IN ('waiting', 'active', 'voting', 'finished', 'cancelled')) DEFAULT 'waiting',
+  
+  -- Players
+  player1_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  player2_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  winner_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  
+  -- Game state
+  current_round INTEGER DEFAULT 0,
+  called_genres JSONB DEFAULT '[]'::jsonb,
+  current_genre TEXT,
+  
+  -- Bingo cards
+  player1_card JSONB,
+  player2_card JSONB,
+  
+  -- Timing
+  round_start_time TIMESTAMP WITH TIME ZONE,
+  voting_deadline TIMESTAMP WITH TIME ZONE,
+  
+  -- Match metadata
+  spectator_count INTEGER DEFAULT 0,
+  total_rounds INTEGER DEFAULT 0,
+  match_duration_seconds INTEGER,
+  
+  -- Discord integration
+  discord_channel_id TEXT,
+  discord_guild_id TEXT
+);
+
+-- AUDIO SUBMISSIONS TABLE
+CREATE TABLE public.audio_submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  -- Submission details
+  match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  round_number INTEGER NOT NULL,
+  genre TEXT NOT NULL,
+  
+  -- Audio file details
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  duration_seconds REAL NOT NULL,
+  mime_type TEXT NOT NULL,
+  
+  -- Metadata
+  title TEXT,
+  description TEXT,
+  
+  -- Processing status
+  processing_status TEXT CHECK (processing_status IN ('uploading', 'processing', 'ready', 'failed')) DEFAULT 'uploading',
+  
+  UNIQUE(match_id, user_id, round_number)
+);
+
+-- VOTES TABLE
+CREATE TABLE public.votes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  -- Vote details
+  match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE NOT NULL,
+  voter_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  voted_for_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  round_number INTEGER NOT NULL,
+  
+  -- Vote metadata
+  vote_power REAL NOT NULL DEFAULT 1.0,
+  voter_spectator_elo INTEGER NOT NULL,
+  
+  UNIQUE(match_id, voter_id, round_number)
+);
+
+-- HANDICAPS TABLE
+CREATE TABLE public.handicaps (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  
+  -- Handicap details
+  match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  target_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  
+  -- Handicap type and effects
+  handicap_type TEXT CHECK (handicap_type IN ('blind_spot', 'double_trouble', 'coin_monsoon', 'elo_shift')) NOT NULL,
+  cost_coins INTEGER NOT NULL,
+  round_applied INTEGER,
+  duration_rounds INTEGER DEFAULT 1,
+  
+  -- Effects
+  effects JSONB NOT NULL,
+  
+  -- Status
+  status TEXT CHECK (status IN ('pending', 'active', 'completed', 'cancelled')) DEFAULT 'pending'
+);
+
+-- =====================================================
+-- CREATE INDEXES
+-- =====================================================
+
+-- User indexes
+CREATE INDEX idx_users_discord_id ON public.users(discord_id);
+CREATE INDEX idx_users_username ON public.users(username);
+CREATE INDEX idx_users_competitor_elo ON public.users(competitor_elo DESC);
+CREATE INDEX idx_users_spectator_elo ON public.users(spectator_elo DESC);
+
+-- Match indexes
+CREATE INDEX idx_matches_status ON public.matches(status);
+CREATE INDEX idx_matches_players ON public.matches(player1_id, player2_id);
+CREATE INDEX idx_matches_created_at ON public.matches(created_at DESC);
+
+-- Audio submission indexes
+CREATE INDEX idx_audio_submissions_match_id ON public.audio_submissions(match_id);
+CREATE INDEX idx_audio_submissions_user_id ON public.audio_submissions(user_id);
+
+-- Vote indexes
+CREATE INDEX idx_votes_match_id ON public.votes(match_id);
+CREATE INDEX idx_votes_voter_id ON public.votes(voter_id);
+
+-- =====================================================
+-- CREATE FUNCTIONS AND TRIGGERS
+-- =====================================================
+
+-- Function to update the updated_at column
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply updated_at trigger to relevant tables
+CREATE TRIGGER handle_updated_at_users
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+CREATE TRIGGER handle_updated_at_matches
+  BEFORE UPDATE ON public.matches
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Function to handle new user creation from Discord OAuth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, discord_id, discord_username, username, display_name)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'provider_id',
+    NEW.raw_user_meta_data->>'user_name',
+    COALESCE(NEW.raw_user_meta_data->>'user_name', 'User' || substring(NEW.id::text, 1, 8)),
+    NEW.raw_user_meta_data->>'full_name'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to create user profile when new auth user is created
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- =====================================================
+-- CREATE VIEWS WITH PROPER NUMERIC CASTING
+-- =====================================================
+
+CREATE VIEW public.leaderboard_competitors AS
+SELECT 
+  u.id,
+  u.username,
+  u.display_name,
+  u.discord_username,
+  u.competitor_elo,
+  u.games_played,
+  u.games_won,
+  CASE 
+    WHEN u.games_played > 0 THEN ROUND((u.games_won::NUMERIC / u.games_played::NUMERIC) * 100, 1)
+    ELSE 0::NUMERIC
+  END as win_percentage,
+  u.rounds_won,
+  u.coins,
+  CASE
+    WHEN u.competitor_elo >= 3000 THEN 'Grandmaster'
+    WHEN u.competitor_elo >= 2500 THEN 'Master'
+    WHEN u.competitor_elo >= 2000 THEN 'Diamond III'
+    WHEN u.competitor_elo >= 1500 THEN 'Platinum I'
+    WHEN u.competitor_elo >= 1200 THEN 'Gold II'
+    WHEN u.competitor_elo >= 1000 THEN 'Silver III'
+    ELSE 'Bronze V'
+  END as rank,
+  ROW_NUMBER() OVER (ORDER BY u.competitor_elo DESC, u.games_won DESC) as rank_position
+FROM public.users u
+WHERE u.is_active = true AND u.games_played > 0
+ORDER BY u.competitor_elo DESC, u.games_won DESC;
+
+CREATE VIEW public.leaderboard_spectators AS
+SELECT 
+  u.id,
+  u.username,
+  u.display_name,
+  u.discord_username,
+  u.spectator_elo,
+  u.total_votes_cast,
+  CASE 
+    WHEN u.total_votes_cast > 0 THEN ROUND((u.total_votes_received::NUMERIC / u.total_votes_cast::NUMERIC) * 100, 1)
+    ELSE 0::NUMERIC
+  END as accuracy_percentage,
+  ROUND((1.0 + (u.spectator_elo::NUMERIC / 1000))::NUMERIC, 2) as vote_power,
+  u.coins,
+  ROW_NUMBER() OVER (ORDER BY u.spectator_elo DESC, u.total_votes_cast DESC) as rank_position
+FROM public.users u
+WHERE u.is_active = true AND u.total_votes_cast > 0
+ORDER BY u.spectator_elo DESC, u.total_votes_cast DESC;
+
+-- =====================================================
+-- ENABLE ROW LEVEL SECURITY
+-- =====================================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.matches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audio_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.votes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.handicaps ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Users can view public profiles" ON public.users
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can update their own profile" ON public.users
+  FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Anyone can view matches" ON public.matches
+  FOR SELECT USING (true);
+
+CREATE POLICY "Service role can manage matches" ON public.matches
+  FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "Anyone can view audio submissions" ON public.audio_submissions
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can create their own audio submissions" ON public.audio_submissions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own audio submissions" ON public.audio_submissions
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Anyone can view votes" ON public.votes
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can create their own votes" ON public.votes
+  FOR INSERT WITH CHECK (auth.uid() = voter_id);
+
+CREATE POLICY "Participants can view handicaps" ON public.handicaps
+  FOR SELECT USING (auth.uid() = user_id OR auth.uid() = target_user_id);
+
+CREATE POLICY "Users can create handicaps" ON public.handicaps
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- =====================================================
+-- CREATE STORAGE BUCKET AND POLICIES
+-- =====================================================
+
+-- Create storage bucket for audio files
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('audio-submissions', 'audio-submissions', false);
+
+-- Storage policies for audio files
+CREATE POLICY "Anyone can view audio files" ON storage.objects
+  FOR SELECT USING (bucket_id = 'audio-submissions');
+
+CREATE POLICY "Authenticated users can upload audio files" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'audio-submissions' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Users can update their own audio files" ON storage.objects
+  FOR UPDATE USING (bucket_id = 'audio-submissions' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can delete their own audio files" ON storage.objects
+  FOR DELETE USING (bucket_id = 'audio-submissions' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- =====================================================
+-- VERIFICATION AND SUCCESS MESSAGE
+-- =====================================================
+
+-- Verify tables exist
+DO $$
+DECLARE
+    table_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO table_count 
+    FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name IN ('users', 'matches', 'audio_submissions', 'votes', 'handicaps');
+    
+    IF table_count = 5 THEN
+        RAISE NOTICE '🎉 SUCCESS! All 5 tables created successfully!';
+        RAISE NOTICE '✅ Tables: users, matches, audio_submissions, votes, handicaps';
+        RAISE NOTICE '✅ Views: leaderboard_competitors, leaderboard_spectators';
+        RAISE NOTICE '✅ Storage bucket: audio-submissions';
+        RAISE NOTICE '✅ RLS policies and triggers configured';
+        RAISE NOTICE '✅ Functions and indexes created';
+        RAISE NOTICE '🚀 Sound Royale database is ready for Discord OAuth!';
+    ELSE
+        RAISE EXCEPTION 'ERROR: Only % out of 5 tables were created', table_count;
+    END IF;
+END
+$$;
