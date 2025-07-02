@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Play, Users, CheckCircle, Clock, Timer, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 // Real database hooks
 import { 
@@ -38,6 +39,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const [timeRemaining, setTimeRemaining] = useState(300);
   const [blindedPlayers, setBlindedPlayers] = useState<Set<string>>(new Set());
   const [playersReady, setPlayersReady] = useState<Set<string>>(new Set());
+  const [wonGenres, setWonGenres] = useState<Record<string, string[]>>({});
   const [gameAnalytics, setGameAnalytics] = useState({
     startTime: Date.now(),
     totalVotes: 0,
@@ -50,6 +52,30 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     }>
   });
   const { toast } = useToast();
+
+  // Real-time synchronization
+  const { syncGameState, submitVote } = useRealtimeSync({
+    matchId: currentMatchId || '',
+    onGameStateUpdate: (updates) => {
+      setGameState(prev => prev ? { ...prev, ...updates } : null);
+    },
+    onVoteUpdate: (vote) => {
+      console.log('New vote received:', vote);
+      // Handle vote updates in real-time
+    },
+    onPlayerJoin: (playerId) => {
+      toast({
+        title: "Player Joined",
+        description: `A spectator joined the match!`,
+      });
+    },
+    onPlayerLeave: (playerId) => {
+      toast({
+        title: "Player Left",
+        description: `A spectator left the match.`,
+      });
+    }
+  });
 
   // Database hooks
   const { data: matches, isLoading: matchesLoading } = useMatches();
@@ -223,16 +249,14 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       const newRound = gameState.currentRound + 1;
       const votingDeadline = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
 
-      await updateMatchMutation.mutateAsync({
-        matchId: currentMatchId,
+      // Sync state in real-time
+      await syncGameState({
         status: 'voting',
-        updates: {
-          current_genre: genre,
-          current_round: newRound,
-          called_genres: [...gameState.called_genres, genre],
-          voting_deadline: votingDeadline.toISOString(),
-          total_rounds: newRound
-        }
+        currentGenre: genre,
+        currentRound: newRound,
+        calledGenres: [...gameState.called_genres, genre],
+        voting_deadline: votingDeadline.toISOString(),
+        totalRounds: newRound
       });
 
       setTimeRemaining(300); // 5 minutes for voting
@@ -348,15 +372,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     if (!currentPlayer || !currentMatchId || !gameState?.currentGenre) return;
 
     try {
-      await submitVoteMutation.mutateAsync({
-        matchId: currentMatchId,
-        voterId: currentPlayer.id,
-        roundNumber: gameState.currentRound,
-        genre: gameState.currentGenre,
-        votedForPlayerId: playerId,
-        voterElo: currentPlayer.spectator_elo
-      });
-
+      await submitVote(playerId, currentPlayer.spectator_elo);
+      
       toast({
         title: "Vote Submitted!",
         description: `You voted for ${gameState.players?.find(p => p.id === playerId)?.username}`,
@@ -365,11 +382,18 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
       console.error('Error submitting vote:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to submit vote. Please try again.",
+        description: "Failed to submit vote. Please try again.",
         variant: "destructive"
       });
     }
   };
+
+  // Mock audio submissions for demonstration
+  const audioSubmissions = gameState?.players?.map(player => ({
+    playerId: player.id,
+    audioUrl: `https://example.com/audio/${player.id}-${gameState.currentGenre}.mp3`,
+    playerName: player.username
+  })) || [];
 
   // Show match selection if no active match
   if (!currentMatchId && matches) {
@@ -615,7 +639,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
             {/* Timer and current genre */}
             {gameState.status === 'voting' && (
               <div className="text-center mb-6">
-                <div className="bg-slate-800/50 border border-purple-500/30 rounded-xl p-4 max-w-md mx-auto">
+                <div className="bg-gradient-to-br from-slate-800/50 via-purple-900/20 to-slate-800/50 backdrop-blur-xl border border-purple-500/30 rounded-xl p-4 max-w-md mx-auto">
                   <h3 className="text-2xl font-bold text-purple-400 mb-2">
                     🎵 {gameState.currentGenre}
                   </h3>
@@ -627,7 +651,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
               </div>
             )}
 
-            {/* Players and Cards */}
+            {/* Players and Enhanced Bingo Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {gameState.players?.map((player, index) => (
                 <div key={player.id} className="space-y-4">
@@ -637,26 +661,24 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                     calledGenres={gameState.called_genres || []}
                     isBlinded={blindedPlayers.has(player.id)}
                     playerName={player.username}
+                    wonGenres={wonGenres[player.id] || []}
+                    isCurrentPlayer={player.id === currentPlayer?.id}
                   />
                 </div>
               ))}
             </div>
 
-            {/* Voting Panel */}
+            {/* Enhanced Voting Panel with Audio Playback */}
             {gameState.status === 'voting' && gameState.players && (
               <div className="mb-8">
                 <VotingPanel
                   players={gameState.players}
                   currentGenre={gameState.currentGenre || ''}
                   timeRemaining={timeRemaining}
-                  votes={currentVotes?.map(vote => ({
-                    id: vote.voter_id,
-                    playerId: vote.voted_for_id,
-                    voterName: vote.voter?.username || 'Unknown',
-                    power: vote.vote_power
-                  })) || []}
+                  votes={[]} // This would come from useMatchVotes hook
                   onVote={handleVote}
                   currentPlayer={currentPlayer}
+                  audioSubmissions={audioSubmissions}
                 />
               </div>
             )}
