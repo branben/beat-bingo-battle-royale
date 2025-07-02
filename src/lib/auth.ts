@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -76,6 +77,7 @@ export class AuthService {
   }
 
   static async signInWithDiscord() {
+    console.log('Starting Discord OAuth...');
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
       options: {
@@ -89,6 +91,7 @@ export class AuthService {
       throw error;
     }
 
+    console.log('Discord OAuth initiated:', data);
     return data;
   }
 
@@ -106,8 +109,11 @@ export class AuthService {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
+        console.log('No authenticated user found');
         return null;
       }
+
+      console.log('Current user from auth:', user);
 
       // Get the user profile from our users table
       const { data: profile, error: profileError } = await supabase
@@ -118,13 +124,15 @@ export class AuthService {
 
       if (profileError || !profile) {
         // If no profile, could be a new user, let's create one.
-        if (profileError.code === 'PGRST116') { // "single() row not found"
+        if (profileError?.code === 'PGRST116') { // "single() row not found"
+            console.log('Profile not found, creating new profile');
             return this.ensureProfile(user);
         }
         console.error('Profile fetch error:', profileError);
         return null;
       }
 
+      console.log('User profile found:', profile);
       return profile as AuthUser;
     } catch (error) {
       console.error('Get current user error:', error);
@@ -199,9 +207,14 @@ export class AuthService {
 
   static onAuthStateChange(callback: (user: AuthUser | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
       if (event === 'SIGNED_IN' && session?.user) {
-        const user = await this.getCurrentUser();
-        callback(user);
+        // Don't fetch user here to avoid infinite loops, let the main component handle it
+        setTimeout(async () => {
+          const user = await this.getCurrentUser();
+          callback(user);
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         this.clearGuestUser();
         callback(null);
@@ -210,6 +223,10 @@ export class AuthService {
   }
 
   static async ensureProfile(user: User): Promise<AuthUser> {
+    console.log('Ensuring profile for user:', user.id);
+    console.log('User metadata:', user.user_metadata);
+    console.log('App metadata:', user.app_metadata);
+
     // Check if profile exists
     const { data: existingProfile } = await supabase
       .from('users')
@@ -218,19 +235,25 @@ export class AuthService {
       .single();
 
     if (existingProfile) {
+      console.log('Profile already exists:', existingProfile);
       return existingProfile as AuthUser;
     }
 
     // Create new profile from OAuth or email data
     const metadata = user.user_metadata;
+    const appMetadata = user.app_metadata;
+    
+    // Better Discord data extraction
+    const isDiscordUser = appMetadata.provider === 'discord';
+    
     const newProfileData = {
       id: user.id,
       email: user.email,
-      discord_id: user.app_metadata.provider === 'discord' ? metadata.provider_id : null,
-      discord_username: user.app_metadata.provider === 'discord' ? metadata.user_name : null,
-      discord_avatar: user.app_metadata.provider === 'discord' ? metadata.avatar_url : null,
-      username: metadata.username || metadata.user_name || `user-${user.id.slice(0, 6)}`,
-      display_name: metadata.display_name || metadata.full_name || metadata.user_name,
+      discord_id: isDiscordUser ? metadata.provider_id : null,
+      discord_username: isDiscordUser ? metadata.user_name || metadata.username : null,
+      discord_avatar: isDiscordUser ? metadata.avatar_url : null,
+      username: metadata.user_name || metadata.username || metadata.display_name || `user-${user.id.slice(0, 6)}`,
+      display_name: metadata.global_name || metadata.display_name || metadata.full_name || metadata.user_name,
       competitor_elo: 500,
       spectator_elo: 1000,
       games_played: 0,
@@ -243,6 +266,8 @@ export class AuthService {
       last_seen: new Date().toISOString()
     };
 
+    console.log('Creating new profile:', newProfileData);
+
     const { data, error } = await supabase
       .from('users')
       .insert(newProfileData)
@@ -254,6 +279,7 @@ export class AuthService {
       throw error;
     }
 
+    console.log('Profile created successfully:', data);
     return data as AuthUser;
   }
 }

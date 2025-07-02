@@ -9,6 +9,86 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      audio_submissions: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_seconds: number
+          file_name: string
+          file_path: string
+          file_size: number
+          genre: string
+          id: string
+          match_id: string
+          mime_type: string
+          processing_status: string | null
+          round_number: number
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_seconds: number
+          file_name: string
+          file_path: string
+          file_size: number
+          genre: string
+          id?: string
+          match_id: string
+          mime_type: string
+          processing_status?: string | null
+          round_number: number
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          genre?: string
+          id?: string
+          match_id?: string
+          mime_type?: string
+          processing_status?: string | null
+          round_number?: number
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_submissions_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audio_submissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audio_submissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audio_submissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beat_submissions: {
         Row: {
           audio_url: string | null
@@ -38,13 +118,6 @@ export type Database = {
           submitted_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "beat_submissions_match_id_fkey"
-            columns: ["match_id"]
-            isOneToOne: false
-            referencedRelation: "matches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "beat_submissions_player_id_fkey"
             columns: ["player_id"]
@@ -81,17 +154,102 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "bingo_cards_match_id_fkey"
+            foreignKeyName: "bingo_cards_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      handicaps: {
+        Row: {
+          cost_coins: number
+          created_at: string
+          duration_rounds: number | null
+          effects: Json
+          handicap_type: string
+          id: string
+          match_id: string
+          round_applied: number | null
+          status: string | null
+          target_user_id: string | null
+          user_id: string
+        }
+        Insert: {
+          cost_coins: number
+          created_at?: string
+          duration_rounds?: number | null
+          effects: Json
+          handicap_type: string
+          id?: string
+          match_id: string
+          round_applied?: number | null
+          status?: string | null
+          target_user_id?: string | null
+          user_id: string
+        }
+        Update: {
+          cost_coins?: number
+          created_at?: string
+          duration_rounds?: number | null
+          effects?: Json
+          handicap_type?: string
+          id?: string
+          match_id?: string
+          round_applied?: number | null
+          status?: string | null
+          target_user_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "handicaps_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
             referencedRelation: "matches"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bingo_cards_player_id_fkey"
-            columns: ["player_id"]
+            foreignKeyName: "handicaps_target_user_id_fkey"
+            columns: ["target_user_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handicaps_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handicaps_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handicaps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handicaps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "handicaps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -117,13 +275,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "match_spectators_match_id_fkey"
-            columns: ["match_id"]
-            isOneToOne: false
-            referencedRelation: "matches"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "match_spectators_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
@@ -134,52 +285,133 @@ export type Database = {
       }
       matches: {
         Row: {
-          called_genres: string[] | null
-          created_at: string | null
-          handicaps_used: Json | null
+          called_genres: Json | null
+          created_at: string
+          current_genre: string | null
+          current_round: number | null
+          discord_channel_id: string | null
+          discord_guild_id: string | null
           id: string
-          player1: string | null
-          player2: string | null
+          match_duration_seconds: number | null
+          match_number: number
+          player1_card: Json | null
+          player1_id: string | null
+          player2_card: Json | null
+          player2_id: string | null
+          round_start_time: string | null
+          spectator_count: number | null
+          status: string | null
+          total_rounds: number | null
+          updated_at: string
+          voting_deadline: string | null
           winner_id: string | null
         }
         Insert: {
-          called_genres?: string[] | null
-          created_at?: string | null
-          handicaps_used?: Json | null
+          called_genres?: Json | null
+          created_at?: string
+          current_genre?: string | null
+          current_round?: number | null
+          discord_channel_id?: string | null
+          discord_guild_id?: string | null
           id?: string
-          player1?: string | null
-          player2?: string | null
+          match_duration_seconds?: number | null
+          match_number?: never
+          player1_card?: Json | null
+          player1_id?: string | null
+          player2_card?: Json | null
+          player2_id?: string | null
+          round_start_time?: string | null
+          spectator_count?: number | null
+          status?: string | null
+          total_rounds?: number | null
+          updated_at?: string
+          voting_deadline?: string | null
           winner_id?: string | null
         }
         Update: {
-          called_genres?: string[] | null
-          created_at?: string | null
-          handicaps_used?: Json | null
+          called_genres?: Json | null
+          created_at?: string
+          current_genre?: string | null
+          current_round?: number | null
+          discord_channel_id?: string | null
+          discord_guild_id?: string | null
           id?: string
-          player1?: string | null
-          player2?: string | null
+          match_duration_seconds?: number | null
+          match_number?: never
+          player1_card?: Json | null
+          player1_id?: string | null
+          player2_card?: Json | null
+          player2_id?: string | null
+          round_start_time?: string | null
+          spectator_count?: number | null
+          status?: string | null
+          total_rounds?: number | null
+          updated_at?: string
+          voting_deadline?: string | null
           winner_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "matches_player1_fkey"
-            columns: ["player1"]
+            foreignKeyName: "matches_player1_id_fkey"
+            columns: ["player1_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_competitors"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "matches_player2_fkey"
-            columns: ["player2"]
+            foreignKeyName: "matches_player1_id_fkey"
+            columns: ["player1_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "matches_winner_id_fkey"
             columns: ["winner_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -247,30 +479,99 @@ export type Database = {
         }
         Relationships: []
       }
-      votes: {
+      users: {
         Row: {
-          created_at: string | null
+          coins: number | null
+          competitor_elo: number | null
+          created_at: string
+          discord_avatar: string | null
+          discord_id: string | null
+          discord_username: string | null
+          display_name: string | null
+          games_played: number | null
+          games_won: number | null
           id: string
-          match_id: string | null
-          spectator_id: string | null
-          vote_power: number | null
-          voted_player_id: string | null
+          is_active: boolean | null
+          last_seen: string | null
+          rounds_won: number | null
+          spectator_elo: number | null
+          total_votes_cast: number | null
+          total_votes_received: number | null
+          updated_at: string
+          username: string
         }
         Insert: {
-          created_at?: string | null
+          coins?: number | null
+          competitor_elo?: number | null
+          created_at?: string
+          discord_avatar?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          display_name?: string | null
+          games_played?: number | null
+          games_won?: number | null
           id?: string
-          match_id?: string | null
-          spectator_id?: string | null
-          vote_power?: number | null
-          voted_player_id?: string | null
+          is_active?: boolean | null
+          last_seen?: string | null
+          rounds_won?: number | null
+          spectator_elo?: number | null
+          total_votes_cast?: number | null
+          total_votes_received?: number | null
+          updated_at?: string
+          username: string
         }
         Update: {
-          created_at?: string | null
+          coins?: number | null
+          competitor_elo?: number | null
+          created_at?: string
+          discord_avatar?: string | null
+          discord_id?: string | null
+          discord_username?: string | null
+          display_name?: string | null
+          games_played?: number | null
+          games_won?: number | null
           id?: string
-          match_id?: string | null
-          spectator_id?: string | null
-          vote_power?: number | null
-          voted_player_id?: string | null
+          is_active?: boolean | null
+          last_seen?: string | null
+          rounds_won?: number | null
+          spectator_elo?: number | null
+          total_votes_cast?: number | null
+          total_votes_received?: number | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      votes: {
+        Row: {
+          created_at: string
+          id: string
+          match_id: string
+          round_number: number
+          vote_power: number
+          voted_for_id: string
+          voter_id: string
+          voter_spectator_elo: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_id: string
+          round_number: number
+          vote_power?: number
+          voted_for_id: string
+          voter_id: string
+          voter_spectator_elo: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_id?: string
+          round_number?: number
+          vote_power?: number
+          voted_for_id?: string
+          voter_id?: string
+          voter_spectator_elo?: number
         }
         Relationships: [
           {
@@ -281,24 +582,83 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "votes_spectator_id_fkey"
-            columns: ["spectator_id"]
+            foreignKeyName: "votes_voted_for_id_fkey"
+            columns: ["voted_for_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_competitors"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "votes_voted_player_id_fkey"
-            columns: ["voted_player_id"]
+            foreignKeyName: "votes_voted_for_id_fkey"
+            columns: ["voted_for_id"]
             isOneToOne: false
-            referencedRelation: "players"
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_voted_for_id_fkey"
+            columns: ["voted_for_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_voter_id_fkey"
+            columns: ["voter_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_voter_id_fkey"
+            columns: ["voter_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_spectators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_voter_id_fkey"
+            columns: ["voter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      leaderboard_competitors: {
+        Row: {
+          coins: number | null
+          competitor_elo: number | null
+          discord_username: string | null
+          display_name: string | null
+          games_played: number | null
+          games_won: number | null
+          id: string | null
+          rank: string | null
+          rank_position: number | null
+          rounds_won: number | null
+          username: string | null
+          win_percentage: number | null
+        }
+        Relationships: []
+      }
+      leaderboard_spectators: {
+        Row: {
+          accuracy_percentage: number | null
+          coins: number | null
+          discord_username: string | null
+          display_name: string | null
+          id: string | null
+          rank_position: number | null
+          spectator_elo: number | null
+          total_votes_cast: number | null
+          username: string | null
+          vote_power: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never

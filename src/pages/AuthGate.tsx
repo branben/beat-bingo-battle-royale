@@ -11,7 +11,9 @@ const AuthGate = () => {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        console.log('Initializing auth...');
         const user = await AuthService.getCurrentUser();
+        console.log('Initial user:', user);
         setAuthUser(user);
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -22,7 +24,9 @@ const AuthGate = () => {
 
     initAuth();
 
+    // Set up auth state listener
     const { data: { subscription } } = AuthService.onAuthStateChange((user) => {
+      console.log('Auth state changed in AuthGate:', user);
       setAuthUser(user);
       setIsLoading(false);
     });

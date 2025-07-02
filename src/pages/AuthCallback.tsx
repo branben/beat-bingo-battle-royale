@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,7 +13,9 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Handle the OAuth callback
+        console.log('Auth callback started');
+        
+        // Handle the OAuth callback by getting the session from URL hash
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -22,16 +25,22 @@ const AuthCallback = () => {
           return;
         }
 
+        console.log('Session data:', data);
+
         if (data.session?.user) {
-          // Ensure user profile exists
+          console.log('User found:', data.session.user);
+          console.log('User metadata:', data.session.user.user_metadata);
+          
+          // Ensure user profile exists in our database
           await AuthService.ensureProfile(data.session.user);
           setStatus('success');
           
           // Redirect to game after successful auth
           setTimeout(() => {
             navigate('/', { replace: true });
-          }, 2000);
+          }, 1500);
         } else {
+          console.log('No user session found');
           setError('No user session found');
           setStatus('error');
         }
