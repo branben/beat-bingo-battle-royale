@@ -211,8 +211,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
     if (!currentMatchId || !gameState || gameState.status !== 'active') return;
 
     try {
-      const player1_genres = gameState.player1Card?.flat() || [];
-      const player2_genres = gameState.player2Card?.flat() || [];
+      const player1_genres = gameState.player1Card?.squares?.flat() || [];
+      const player2_genres = gameState.player2Card?.squares?.flat() || [];
       const genre = selectGenre(player1_genres, player2_genres, gameState.calledGenres);
 
       if (!genre) {
@@ -293,8 +293,8 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
           }));
 
           // Check for bingo
-          if (checkBingo(gameState.player1Card, gameState.calledGenres) || 
-              checkBingo(gameState.player2Card, gameState.calledGenres)) {
+          if (checkBingo(gameState.player1Card) || 
+              checkBingo(gameState.player2Card)) {
             await handleGameEnd(winnerId);
             return;
           }
@@ -650,6 +650,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
                   currentGenre={gameState.currentGenre || ''}
                   timeRemaining={timeRemaining}
                   votes={currentVotes?.map(vote => ({
+                    id: vote.voter_id,
                     playerId: vote.voted_for_player_id,
                     voterName: vote.voter?.username || 'Unknown',
                     power: vote.vote_power
@@ -665,7 +666,12 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
         {/* Game Analytics */}
         {gameState.status === 'finished' && (
           <div className="mb-8">
-            <GameAnalytics analytics={gameAnalytics} />
+            <GameAnalytics 
+              gameState={gameState}
+              gameDuration={Math.floor((Date.now() - gameAnalytics.startTime) / 1000)}
+              totalVotes={gameAnalytics.totalVotes}
+              roundDetails={gameAnalytics.roundDetails}
+            />
           </div>
         )}
       </div>

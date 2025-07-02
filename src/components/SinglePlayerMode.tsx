@@ -118,8 +118,8 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
   };
 
   const callNextGenre = (currentGameState: GameState) => {
-    const player1_genres = currentGameState.player1Card?.flat() || [];
-    const player2_genres = currentGameState.player2Card?.flat() || [];
+    const player1_genres = currentGameState.player1Card?.squares?.flat() || [];
+    const player2_genres = currentGameState.player2Card?.squares?.flat() || [];
     const genre = selectGenre(player1_genres, player2_genres, currentGameState.calledGenres);
 
     if (!genre) {
@@ -205,8 +205,8 @@ const SinglePlayerMode: React.FC<SinglePlayerModeProps> = ({ currentPlayer, onGa
     });
 
     // Check for bingo
-    const player1Bingo = checkBingo(currentGameState.player1Card.squares, currentGameState.calledGenres);
-    const player2Bingo = checkBingo(currentGameState.player2Card.squares, currentGameState.calledGenres);
+    const player1Bingo = checkBingo(currentGameState.player1Card);
+    const player2Bingo = checkBingo(currentGameState.player2Card);
 
     if (player1Bingo || player2Bingo) {
       const gameWinner = player1Bingo ? currentGameState.players[0] : currentGameState.players[1];

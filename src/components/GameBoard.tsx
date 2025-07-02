@@ -107,18 +107,36 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
   const startNewGame = () => {
     const player1 = mockPlayers[0];
     const player2 = mockPlayers[1];
+    const player1Card = generateBingoCard();
+    const player2Card = generateBingoCard();
     
     const newGame: GameState = {
       id: `game_${Date.now()}`,
       player1,
       player2,
-      player1_card: generateBingoCard(),
-      player2_card: generateBingoCard(),
+      player1_card: player1Card,
+      player2_card: player2Card,
       called_genres: [],
+      current_call: undefined,
       spectators: mockSpectators,
       votes: {},
+      voting_deadline: undefined,
       handicaps_used: [],
-      status: 'waiting'
+      winner_id: undefined,
+      status: 'waiting',
+      
+      // Additional required properties for compatibility
+      currentRound: 0,
+      currentGenre: undefined,
+      players: [player1, player2],
+      player1Card,
+      player2Card,
+      calledGenres: [],
+      roundStartTime: undefined,
+      winner: undefined,
+      spectatorCount: mockSpectators.length,
+      totalRounds: 0,
+      matchNumber: Math.floor(Math.random() * 9000) + 1000
     };
 
     setGameState(newGame);
@@ -706,17 +724,15 @@ const GameBoard: React.FC<GameBoardProps> = ({ currentPlayer, onGameEnd }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <BingoCard
               card={gameState.player1_card}
-              onSquareClick={(row, col) => handleSquareClick(gameState.player1.id, row, col)}
-              isClickable={gameState.status === 'active'}
-              playerName={gameState.player1.username}
+              calledGenres={gameState.called_genres}
               isBlinded={blindedPlayers.has(gameState.player1.id)}
+              playerName={gameState.player1.username}
             />
             <BingoCard
               card={gameState.player2_card}
-              onSquareClick={(row, col) => handleSquareClick(gameState.player2.id, row, col)}
-              isClickable={gameState.status === 'active'}
-              playerName={gameState.player2.username}
+              calledGenres={gameState.called_genres}
               isBlinded={blindedPlayers.has(gameState.player2.id)}
+              playerName={gameState.player2.username}
             />
           </div>
         )}

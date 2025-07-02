@@ -47,7 +47,7 @@ export const useMatches = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Match[];
+      return data as unknown as Match[];
     }
   });
 };
@@ -69,7 +69,7 @@ export const useMatch = (matchId: string) => {
         .single();
       
       if (error) throw error;
-      return data as Match;
+      return data as unknown as Match;
     },
     enabled: !!matchId
   });
@@ -91,8 +91,8 @@ export const useCreateMatch = () => {
           player1_id: player1Id,
           player2_id: player2Id,
           status: 'waiting',
-          player1_card: player1Card,
-          player2_card: player2Card,
+          player1_card: player1Card.squares,
+          player2_card: player2Card.squares,
           current_round: 0,
           called_genres: [],
           spectator_count: 0,
@@ -107,7 +107,7 @@ export const useCreateMatch = () => {
         .single();
       
       if (error) throw error;
-      return data as Match;
+      return data as unknown as Match;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
@@ -214,19 +214,30 @@ export const matchToGameState = (match: Match, spectators: Player[] = []): GameS
 
   return {
     id: match.id,
-    status: match.status,
+    status: match.status === 'cancelled' ? 'finished' : match.status,
     currentRound: match.current_round,
-    calledGenres: match.called_genres,
+    calledGenres: Array.isArray(match.called_genres) ? match.called_genres : [],
     currentGenre: match.current_genre,
     players: [player1, player2],
     spectators: spectators,
-    player1Card: match.player1_card,
-    player2Card: match.player2_card,
+    player1Card: { squares: match.player1_card || [], marked: [] },
+    player2Card: { squares: match.player2_card || [], marked: [] },
     roundStartTime: match.round_start_time ? new Date(match.round_start_time).getTime() : undefined,
-    votingDeadline: match.voting_deadline ? new Date(match.voting_deadline).getTime() : undefined,
+    voting_deadline: match.voting_deadline ? new Date(match.voting_deadline) : undefined,
     winner: match.winner_id,
     spectatorCount: match.spectator_count,
     totalRounds: match.total_rounds,
-    matchNumber: match.match_number
+    matchNumber: match.match_number,
+    
+    // Legacy properties for backward compatibility
+    player1,
+    player2,
+    player1_card: { squares: match.player1_card || [], marked: [] },
+    player2_card: { squares: match.player2_card || [], marked: [] },
+    called_genres: Array.isArray(match.called_genres) ? match.called_genres : [],
+    current_call: match.current_genre,
+    votes: {},
+    handicaps_used: [],
+    winner_id: match.winner_id
   };
 };
