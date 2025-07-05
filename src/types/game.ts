@@ -27,7 +27,7 @@ export interface GameState {
   current_call?: string;
   spectators: Player[];
   votes: Record<string, string>; // spectator_id -> player_id
-  voting_deadline?: Date;
+  voting_deadline?: string;
   handicaps_used: any[];
   winner_id?: string;
   status: 'waiting' | 'active' | 'voting' | 'handicap' | 'finished';

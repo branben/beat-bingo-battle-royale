@@ -479,6 +479,24 @@ export type Database = {
         }
         Relationships: []
       }
+      rls_test: {
+        Row: {
+          data: string | null
+          id: number
+          user_id: string | null
+        }
+        Insert: {
+          data?: string | null
+          id?: number
+          user_id?: string | null
+        }
+        Update: {
+          data?: string | null
+          id?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           coins: number | null
